@@ -1,0 +1,18 @@
+# Fixed test set for ALL iterations. Changing it invalidates comparisons.
+# Each clip pastes an object from one DAVIS 2017 val video onto another video.
+# The untouched background video is the ground truth for removal quality.
+#
+# Look at the composites once (data/<clip>/frames) and swap out any pair that
+# looks broken BEFORE running B0. After that, keep the list frozen.
+#
+# name                        object_clip      object_id  background_clip
+dog_on_soapbox                dog              1          soapbox
+camel_on_drift-straight       camel            1          drift-straight
+blackswan_on_car-roundabout   blackswan        1          car-roundabout
+goat_on_kite-surf             goat             1          kite-surf
+libby_on_scooter-black        libby            1          scooter-black
+cows_on_paragliding-launch    cows             1          paragliding-launch
+parkour_on_bike-packing       parkour          1          bike-packing
+breakdance_on_india           breakdance       1          india
+horsejump-high_on_gold-fish   horsejump-high   1          gold-fish
+car-shadow_on_lab-coat        car-shadow       1          lab-coat

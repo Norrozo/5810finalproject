@@ -1,0 +1,29 @@
+# B0 baseline: click prompt + SAM 2 tracking + per-frame OpenCV inpainting.
+# For a new iteration, copy this file to configs/<tag>.yaml and change ONE thing.
+version: B0
+
+data_root: data
+runs_root: runs
+results_csv: results/results.csv
+eval_clips: configs/eval_clips.txt
+
+# Clip limits (keep small for Colab's free GPU)
+max_frames: 60
+max_height: 480
+
+segmentation:
+  method: sam2              # sam2 | oracle (oracle copies ground-truth masks; for debugging/ablations)
+  hf_model: facebook/sam2.1-hiera-large
+  offload_video_to_cpu: true
+
+refine:
+  threshold: 127            # B0 only binarizes. No dilation or hole filling yet.
+
+inpaint:
+  method: opencv            # opencv | flow_guided (I3, not implemented) | propainter (I4, not implemented)
+  opencv_method: telea      # telea | ns
+  radius: 5
+
+evaluation:
+  boundary_tolerance: 0.008 # fraction of image diagonal, as in DAVIS
+  region_dilation: 5        # px added around the GT mask when scoring the filled region

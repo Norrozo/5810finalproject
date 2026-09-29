@@ -1,0 +1,12 @@
+# Core (B0 baseline). Colab already has most of these.
+numpy
+opencv-python-headless
+scikit-image
+pyyaml
+pillow
+tqdm
+huggingface_hub
+
+# SAM 2 is installed separately (see README):
+#   pip install "git+https://github.com/facebookresearch/sam2.git"
+# It needs PyTorch with CUDA, which Colab provides.
