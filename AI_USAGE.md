@@ -12,3 +12,12 @@ The course requires a summary of how we used generative AI tools and what, if an
 - **Our review / changes:** _(fill in: who reviewed which files, what you changed, what you verified by running it)_
 
 ---
+
+## 2026-10-05: First real B0 run
+
+- **Tool:** Claude Code (Anthropic), Opus 5.5
+- **What it did:** Downloaded DAVIS 2017, built the synthetic benchmark, installed SAM 2, and ran B0 on all 10 eval clips. Added Apple-Silicon (MPS) device selection to `src/segment.py` (5 lines; CUDA path unchanged). Wrote the B0 entry in `docs/experiment_log.md` from the script output and stills.
+- **Copied directly:** the `segment.py` device-selection change and the B0 log entry text. All numbers in `results/results.csv` and the log come from running the scripts, not from the AI.
+- **Our review / changes:** _(fill in)_
+
+---

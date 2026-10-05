@@ -59,7 +59,12 @@ def segment_sam2(cfg: dict, frames: list[Path], prompt: dict, out_dir: Path) -> 
     from sam2.sam2_video_predictor import SAM2VideoPredictor
 
     seg_cfg = cfg["segmentation"]
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():  # Apple Silicon; set PYTORCH_ENABLE_MPS_FALLBACK=1
+        device = "mps"
+    else:
+        device = "cpu"
     predictor = SAM2VideoPredictor.from_pretrained(seg_cfg["hf_model"], device=device)
 
     # bfloat16 only helps on Ampere+ GPUs (A100, L4). Colab's T4 runs in float32.
