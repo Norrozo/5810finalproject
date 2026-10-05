@@ -90,6 +90,17 @@ def main():
         assert 0 < float(r["psnr_mask"]) < float(r["psnr"]), "fill region should be the hard part"
         assert float(r["flicker"]) >= 0
 
+        # I3 flow-guided inpainting on the same clip. The fake camera pans, so the hidden
+        # background is visible in other frames and must beat per-frame Telea.
+        cfg.update(version="SMOKE_FLOW")
+        cfg["inpaint"]["method"] = "flow_guided"
+        cfg["refine"].update(fill_holes=True, dilate_px=1, min_blob_area=5)  # exercise I1 refine code too
+        cfg_path.write_text(yaml.safe_dump(cfg))
+        run_pipeline.main(["--config", str(cfg_path)])
+        rows = {r["version"]: r for r in csv.DictReader(open(tmp / "results.csv"))}
+        assert float(rows["SMOKE_FLOW"]["psnr_mask"]) > float(rows["SMOKE"]["psnr_mask"]) + 3, \
+            "flow-guided fill should clearly beat per-frame Telea on a panning clip"
+
         # Custom-video path: frame extraction
         vid = tmp / "v.mp4"
         wr = cv2.VideoWriter(str(vid), cv2.VideoWriter_fourcc(*"mp4v"), 10, (W * 4, H * 4))

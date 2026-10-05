@@ -1,0 +1,10 @@
+# DEV set for tuning hyperparameters. Never tune on configs/eval_clips.txt.
+# Built exactly like the test set, but from DAVIS 2017 *train* videos, so no video
+# appears in both sets (all test-set videos are from the val split).
+#
+# name                        object_clip      object_id  background_clip
+flamingo_on_surf              flamingo         1          surf
+elephant_on_car-turn          elephant         1          car-turn
+lucia_on_hockey               lucia            1          hockey
+rhino_on_bus                  rhino            1          bus
+bear_on_kite-walk             bear             1          kite-walk

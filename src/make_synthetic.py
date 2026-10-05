@@ -11,6 +11,7 @@ For each clip in configs/eval_clips.txt this writes:
 
 Usage:
     python -m src.make_synthetic --config configs/B0.yaml --davis-root DAVIS
+    python -m src.make_synthetic --config configs/B0.yaml --davis-root DAVIS --clips-file configs/dev_clips.txt
 """
 from __future__ import annotations
 
@@ -73,11 +74,12 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", required=True)
     ap.add_argument("--davis-root", required=True, help="Folder containing JPEGImages/ and Annotations/")
+    ap.add_argument("--clips-file", help="Clip list to build (default: eval_clips from the config)")
     args = ap.parse_args(argv)
 
     cfg = load_config(args.config)
     davis_root = Path(args.davis_root)
-    entries = [e for e in read_clip_list(cfg["eval_clips"]) if "object_clip" in e]
+    entries = [e for e in read_clip_list(args.clips_file or cfg["eval_clips"]) if "object_clip" in e]
     for entry in tqdm(entries, desc="Building synthetic clips"):
         n = build_clip(davis_root, entry, cfg)
         tqdm.write(f"  {entry['name']}: {n} frames")

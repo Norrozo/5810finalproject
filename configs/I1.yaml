@@ -1,6 +1,5 @@
-# B0 baseline: click prompt + SAM 2 tracking + per-frame OpenCV inpainting.
-# For a new iteration, copy this file to configs/<tag>.yaml and change ONE thing.
-version: B0
+# I1: B0 + mask refinement (drop specks, fill holes, dilate). Everything else identical to B0.
+version: I1
 
 data_root: data
 runs_root: runs
@@ -15,12 +14,16 @@ segmentation:
   method: sam2              # sam2 | oracle (oracle copies ground-truth masks; for debugging/ablations)
   hf_model: facebook/sam2.1-hiera-large
   offload_video_to_cpu: true
+  reuse_from: B0            # same SAM 2 settings as B0, so reuse its masks
 
 refine:
-  threshold: 127            # B0 only binarizes. No dilation or hole filling yet.
+  threshold: 127
+  min_blob_area: 100        # px; drop tiny disconnected specks
+  fill_holes: true          # fill holes fully enclosed by the mask
+  dilate_px: 5              # grow the mask 5 px so edge halos get inpainted too
 
 inpaint:
-  method: opencv            # opencv | flow_guided (I3) | propainter (I4, not implemented)
+  method: opencv            # opencv | flow_guided (I3, not implemented) | propainter (I4, not implemented)
   opencv_method: telea      # telea | ns
   radius: 5
 

@@ -21,3 +21,12 @@ The course requires a summary of how we used generative AI tools and what, if an
 - **Our review / changes:** _(fill in)_
 
 ---
+
+## 2026-10-05: I1, I3, I3b, dev-set tuning
+
+- **Tool:** Claude Code (Anthropic), Opus 5.5
+- **What it did:** Wrote the I1 mask refinement (`src/refine_masks.py`), our flow-guided inpainting (`src/inpaint/flow_guided.py`), the hop cap, the dev clip set (`configs/dev_clips.txt`), the tuning script (`src/sweep.py`), mask reuse between versions (`segmentation.reuse_from` in `src/segment.py`), `--clips-file` in `src/make_synthetic.py`, H.264 video output in `src/visualize.py`, and the configs `I1.yaml`, `I3.yaml`, `I3b.yaml`. Changed `src/evaluate.py` so J&F scores the raw SAM 2 masks. Extended `tests/smoke_test.py`. Ran every experiment and wrote the log entries in `docs/experiment_log.md`.
+- **Copied directly:** all of the code and log text above. All numbers come from running the scripts.
+- **Our review / changes:** _(fill in: be ready to explain flow completion, propagation, and the hop cap)_
+
+---

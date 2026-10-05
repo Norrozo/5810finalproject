@@ -48,6 +48,7 @@ Each stage is a separate script that reads from disk and writes to disk. Do not 
 | I1 | Mask dilation + hole filling |
 | I2 | Text prompt via Grounding DINO |
 | I3 | Our own flow-guided inpainting (Farneback optical flow + temporal pixel propagation, `cv2.inpaint` fallback) |
+| I3b | I3 + hop cap (`max_hops: 5`, tuned on the dev set) |
 | I4 | ProPainter |
 | I5 | Re-detection every N frames for objects that leave and re-enter |
 | I6 | Speed: smaller SAM 2 model, lower resolution, chunking |
@@ -61,6 +62,8 @@ Rules:
 ## Evaluation
 
 - Fixed test set: the clip names in `configs/eval_clips.txt` (10–15 DAVIS 2017 validation clips). Do not change this list without being asked, since that invalidates comparisons.
+- **Never tune on the test set.** Pick hyperparameters on `configs/dev_clips.txt` (DAVIS train videos) with `python -m src.sweep`, which writes to `results/tuning.csv`; then run the chosen value once on the test set.
+- J&F scores the raw SAM 2 masks (`masks/`), not `masks_refined/`.
 - Metrics, all written to `results/results.csv` as one row per (version, clip) by `src/evaluate.py`:
   - **J&F**: region IoU and boundary F-measure, implemented in `src/evaluate.py` following the DAVIS definitions.
   - **Grounding hit rate**: prompt box IoU > 0.5 with the ground-truth box on frame 0.
@@ -86,7 +89,7 @@ src/
   refine_masks.py   stage 3
   inpaint/
     opencv.py       B0 baseline
-    flow_guided.py  our own method (I3, not yet written)
+    flow_guided.py  our own method (I3)
     propainter.py   wrapper around third_party/ProPainter (I4, not yet written)
   evaluate.py       all metrics
   visualize.py      side-by-side videos and stills

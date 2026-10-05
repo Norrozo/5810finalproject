@@ -14,6 +14,10 @@ Metrics (synthetic benchmark clips, which have ground truth):
 Runtime (all clips, including custom videos without GT):
   spf_<stage> seconds per frame for each stage, plus spf_total
 
+J and F score the raw SAM 2 masks (stage 2), not the refined ones: refinement
+deliberately grows the mask past the object (I1), which would lower J&F without
+tracking getting any worse. Refinement is judged by the inpainting metrics.
+
 Note: J and F here are our own implementation following the DAVIS definitions
 (boundary tolerance = 0.008 x image diagonal). They closely track, but are not
 byte-identical to, the official DAVIS toolkit numbers.
@@ -131,7 +135,7 @@ def evaluate_clip(cfg: dict, clip: str) -> dict:
     outputs, gts, regions = [], [], []
     for f in frames:
         gt_mask = read_mask(paths["gt_masks"] / f.name)
-        pred_mask = read_mask(paths["masks_refined"] / f.name)
+        pred_mask = read_mask(paths["masks"] / f.name)  # raw tracker output, before refinement
         Js.append(jaccard(pred_mask, gt_mask))
         Fs.append(boundary_f(pred_mask, gt_mask, ev.get("boundary_tolerance", 0.008)))
 

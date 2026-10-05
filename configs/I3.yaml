@@ -1,6 +1,6 @@
-# B0 baseline: click prompt + SAM 2 tracking + per-frame OpenCV inpainting.
-# For a new iteration, copy this file to configs/<tag>.yaml and change ONE thing.
-version: B0
+# I3: B0 + our flow-guided inpainting (src/inpaint/flow_guided.py). Builds on B0, not I1,
+# because I1's dilation lowered every inpainting metric. Everything else identical to B0.
+version: I3
 
 data_root: data
 runs_root: runs
@@ -15,14 +15,15 @@ segmentation:
   method: sam2              # sam2 | oracle (oracle copies ground-truth masks; for debugging/ablations)
   hf_model: facebook/sam2.1-hiera-large
   offload_video_to_cpu: true
+  reuse_from: B0            # same SAM 2 settings as B0, so reuse its masks
 
 refine:
   threshold: 127            # B0 only binarizes. No dilation or hole filling yet.
 
 inpaint:
-  method: opencv            # opencv | flow_guided (I3) | propainter (I4, not implemented)
-  opencv_method: telea      # telea | ns
-  radius: 5
+  method: flow_guided       # opencv | flow_guided | propainter (I4, not implemented)
+  flow_dilate_px: 15        # flow inside the hole + this margin is replaced by completed background flow
+  radius: 5                 # Telea radius for pixels never visible in any frame
 
 evaluation:
   boundary_tolerance: 0.008 # fraction of image diagonal, as in DAVIS

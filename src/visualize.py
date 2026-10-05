@@ -10,6 +10,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import shutil
+import subprocess
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -47,16 +50,30 @@ def panel_row(paths: dict, name: str) -> np.ndarray:
     return np.hstack([label(cv2.resize(img, size, interpolation=cv2.INTER_AREA), t) for t, img in panels])
 
 
+def write_video(path: Path, rows: list[np.ndarray], fps: int) -> None:
+    """Write an mp4. OpenCV can only write MPEG-4 Part 2 ("mp4v"), which QuickTime and
+    browsers won't play, so re-encode to H.264 with ffmpeg when it's installed."""
+    h, w = rows[0].shape[:2]
+    w, h = w - w % 2, h - h % 2  # H.264 needs even dimensions
+    tmp = path.with_suffix(".mp4v.mp4")
+    writer = cv2.VideoWriter(str(tmp), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+    for r in rows:
+        writer.write(r[:h, :w])
+    writer.release()
+    if shutil.which("ffmpeg"):
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(tmp), "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p", "-crf", "20", str(path)], check=True)
+        tmp.unlink()
+    else:
+        tmp.replace(path)
+
+
 def run(cfg: dict, clip: str, fps: int = 12) -> None:
     paths = clip_paths(cfg, clip)
     names = [f.name for f in list_frames(paths["frames"])]
     rows = [panel_row(paths, n) for n in names]
 
-    h, w = rows[0].shape[:2]
-    writer = cv2.VideoWriter(str(paths["run"] / "side_by_side.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
-    for r in rows:
-        writer.write(r)
-    writer.release()
+    write_video(paths["run"] / "side_by_side.mp4", rows, fps)
 
     picks = sorted({0, len(rows) // 2, len(rows) - 1})
     cv2.imwrite(str(paths["run"] / "stills.png"), np.vstack([rows[i] for i in picks]))

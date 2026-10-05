@@ -27,7 +27,7 @@ import cv2
 import numpy as np
 
 from src.utils import (clip_paths, list_frames, load_config, read_image, read_mask,
-                       stage_done, timed, write_mask)
+                       record_timing, stage_done, timed, write_mask)
 
 
 # ---------------------------------------------------------------- prompts
@@ -100,6 +100,23 @@ def segment_sam2(cfg: dict, frames: list[Path], prompt: dict, out_dir: Path) -> 
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def segment_reuse(cfg: dict, clip: str, frames: list[Path], out_dir: Path) -> dict:
+    """Copy masks from an earlier version that used identical segmentation settings.
+
+    Iterations that only change later stages (I1, I3, I4) reuse B0's SAM 2 masks so
+    every version is compared on exactly the same masks, and nobody waits for SAM 2 twice.
+    Returns the earlier version's segment timing, so s/frame stays a fair comparison.
+    """
+    src = clip_paths({**cfg, "version": cfg["segmentation"]["reuse_from"]}, clip)
+    if not stage_done(src["masks"], len(frames)):
+        raise FileNotFoundError(f"reuse_from: no masks in {src['masks']}; run that version first")
+    for f in frames:
+        shutil.copy(src["masks"] / f.name, out_dir / f.name)
+    if src["used_prompt"].exists():
+        shutil.copy(src["used_prompt"], clip_paths(cfg, clip)["used_prompt"])
+    return json.loads(src["timing"].read_text())["segment"]
+
+
 def segment_oracle(paths: dict, frames: list[Path], out_dir: Path) -> None:
     """Copy ground-truth masks. Isolates inpainting quality from segmentation errors."""
     if not paths["gt_masks"].exists():
@@ -121,8 +138,16 @@ def run(cfg: dict, clip: str, click: list[int] | None = None, overwrite: bool = 
         return
 
     method = cfg["segmentation"]["method"]
-    prompt = resolve_prompt(paths, click) if method != "oracle" else {"source": "oracle"}
     paths["run"].mkdir(parents=True, exist_ok=True)
+    reuse = cfg["segmentation"].get("reuse_from")
+    if reuse:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        t = segment_reuse(cfg, clip, frames, out_dir)
+        record_timing(paths["timing"], "segment", t["seconds"], t["frames"])
+        print(f"  [segment] {clip}: {len(frames)} masks (reused from {reuse})")
+        return
+
+    prompt = resolve_prompt(paths, click) if method != "oracle" else {"source": "oracle"}
     paths["used_prompt"].write_text(json.dumps(prompt, indent=2))
 
     with timed(paths["timing"], "segment", len(frames)):

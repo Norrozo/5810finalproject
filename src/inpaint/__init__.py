@@ -23,7 +23,8 @@ def run(cfg: dict, clip: str, overwrite: bool = False) -> None:
             from src.inpaint.opencv import inpaint_clip
             inpaint_clip(paths["frames"], paths["masks_refined"], out_dir, inpaint_cfg)
         elif method == "flow_guided":
-            raise NotImplementedError("Flow-guided inpainting is iteration I3: implement src/inpaint/flow_guided.py")
+            from src.inpaint.flow_guided import inpaint_clip
+            inpaint_clip(paths["frames"], paths["masks_refined"], out_dir, inpaint_cfg)
         elif method == "propainter":
             raise NotImplementedError("ProPainter is iteration I4: add a wrapper in src/inpaint/propainter.py")
         else:
