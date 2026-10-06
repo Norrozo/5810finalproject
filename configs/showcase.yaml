@@ -1,0 +1,39 @@
+# Showcase: the best pieces combined for demo videos (not a benchmark iteration).
+# Text prompt (I2) -> SAM 2 -> ProPainter (I4).
+version: showcase
+
+data_root: data
+runs_root: runs
+results_csv: runs/showcase_timing.csv   # custom videos have no ground truth; keep out of results/
+eval_clips: configs/eval_clips.txt
+
+# Clip limits (keep small for Colab's free GPU)
+max_frames: 60
+
+grounding:
+  method: grounding_dino
+  hf_model: IDEA-Research/grounding-dino-tiny
+  box_threshold: 0.35       # Hugging Face example defaults, not tuned
+  text_threshold: 0.25
+
+max_height: 480
+
+segmentation:
+  method: sam2              # sam2 | oracle (oracle copies ground-truth masks; for debugging/ablations)
+  hf_model: facebook/sam2.1-hiera-large
+  offload_video_to_cpu: true
+
+refine:
+  threshold: 127            # B0 only binarizes. No dilation or hole filling yet.
+
+inpaint:
+  method: propainter        # opencv | flow_guided | propainter
+  mask_dilation: 4          # ProPainter's default; part of the published method
+  neighbor_length: 10       # ProPainter defaults below
+  ref_stride: 10
+  subvideo_length: 20        # default 80 swaps on a 16 GB Mac (>10 min/clip); 20 = ~2 min/clip
+  fp16: true                # 4x faster on MPS; same quality (20.38 vs 20.44 dB PSNR mask, dog frame 5)
+
+evaluation:
+  boundary_tolerance: 0.008 # fraction of image diagonal, as in DAVIS
+  region_dilation: 5        # px added around the GT mask when scoring the filled region

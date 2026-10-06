@@ -20,3 +20,4 @@ venv/
 # Keep results tables and figures
 !results/
 samples/
+showcase/
