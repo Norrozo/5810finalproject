@@ -1,10 +1,11 @@
-"""Run the full pipeline for one version: segment -> refine -> inpaint -> visualize -> evaluate.
+"""Run the full pipeline for one version: [ground] -> segment -> refine -> inpaint -> visualize -> evaluate.
 
 Benchmark (all clips in configs/eval_clips.txt, auto-click from ground truth):
     python -m src.run_pipeline --config configs/B0.yaml
 
 Your own video (needs a click on the object in the first frame):
     python -m src.run_pipeline --config configs/B0.yaml --video my.mp4 --name my_clip --click 320,240
+    python -m src.run_pipeline --config configs/I2.yaml --video my.mp4 --name my_clip --text "remove the dog"
 
 Stages skip work that is already on disk, so re-running after a Colab disconnect resumes.
 Use --overwrite to force everything to re-run.
@@ -13,7 +14,7 @@ from __future__ import annotations
 
 import argparse
 
-from src import evaluate, extract_frames, inpaint, refine_masks, segment, visualize
+from src import evaluate, extract_frames, grounding, inpaint, refine_masks, segment, visualize
 from src.utils import clip_paths, load_config, read_clip_list
 
 
@@ -24,6 +25,7 @@ def main(argv=None):
     ap.add_argument("--video", help="Run on your own video instead of the benchmark")
     ap.add_argument("--name", help="Clip name for --video")
     ap.add_argument("--click", help="X,Y on the object in frame 0 (for --video)")
+    ap.add_argument("--text", help='Text prompt, e.g. "remove the dog" (configs with a grounding section)')
     ap.add_argument("--overwrite", action="store_true")
     ap.add_argument("--no-viz", action="store_true", help="Skip side-by-side videos (faster)")
     args = ap.parse_args(argv)
@@ -31,9 +33,11 @@ def main(argv=None):
     cfg = load_config(args.config)
     click = [int(v) for v in args.click.split(",")] if args.click else None
 
+    if args.text and "grounding" not in cfg:
+        ap.error("--text needs a config with a grounding section (I2 or later)")
     if args.video:
-        if not args.name or not click:
-            ap.error("--video needs --name and --click")
+        if not args.name or not (click or args.text):
+            ap.error("--video needs --name and --click (or --text)")
         n = extract_frames.extract(args.video, clip_paths(cfg, args.name)["frames"],
                                    cfg["max_frames"], cfg["max_height"])
         print(f"Extracted {n} frames")
@@ -42,6 +46,11 @@ def main(argv=None):
         clips = args.clips or [e["name"] for e in read_clip_list(cfg["eval_clips"])]
 
     print(f"== {cfg['version']} on {len(clips)} clip(s) ==")
+    if "grounding" in cfg:
+        # Ground every clip first, then free the detector so it isn't in memory alongside SAM 2.
+        for clip in clips:
+            grounding.run(cfg, clip, text=args.text, overwrite=args.overwrite)
+        grounding.unload_model()
     for clip in clips:
         segment.run(cfg, clip, click=click, overwrite=args.overwrite)
         refine_masks.run(cfg, clip, overwrite=args.overwrite)
@@ -56,6 +65,9 @@ def main(argv=None):
         print(f"== {cfg['version']} mean over {len(scored)} clips: J&F={mean('JF'):.3f}  "
               f"PSNR={mean('psnr'):.2f}  PSNR(mask)={mean('psnr_mask'):.2f}  "
               f"SSIM={mean('ssim'):.3f}  flicker={mean('flicker'):.2f} ==")
+        hits = [r["grounding_hit"] for r in scored if "grounding_hit" in r]
+        if hits:
+            print(f"== grounding hit rate: {sum(hits)}/{len(hits)} ==")
     print(f"Results written to {cfg['results_csv']}")
 
 

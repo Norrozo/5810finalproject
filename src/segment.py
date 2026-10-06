@@ -1,6 +1,7 @@
 """Stage 2: segment the object on frame 0 from a click and track it with SAM 2.
 
 Prompt sources, in order of priority:
+  0. if the config has a `grounding` section (I2+): the box from stage 1 (boxes.json)
   1. --click X,Y on the command line
   2. data/<clip>/prompt.json  ({"points": [[x, y], ...]})
   3. auto-click from the ground-truth mask on frame 0 (synthetic benchmark only),
@@ -39,7 +40,10 @@ def auto_click_from_mask(mask: np.ndarray) -> list[int]:
     return [int(x), int(y)]
 
 
-def resolve_prompt(paths: dict, click: list[int] | None = None) -> dict:
+def resolve_prompt(paths: dict, click: list[int] | None = None, use_box: bool = False) -> dict:
+    if use_box:
+        boxes = json.loads(paths["boxes"].read_text())
+        return {"frame": 0, "box": boxes["box"], "source": f"text: {boxes['text']}"}
     if click is not None:
         points, source = [click], "cli"
     elif paths["prompt"].exists():
@@ -80,11 +84,16 @@ def segment_sam2(cfg: dict, frames: list[Path], prompt: dict, out_dir: Path) -> 
         with torch.inference_mode(), autocast:
             state = predictor.init_state(video_path=str(tmp),
                                          offload_video_to_cpu=seg_cfg.get("offload_video_to_cpu", True))
-            predictor.add_new_points_or_box(
-                inference_state=state, frame_idx=prompt["frame"], obj_id=1,
-                points=np.array(prompt["points"], dtype=np.float32),
-                labels=np.array(prompt["labels"], dtype=np.int32),
-            )
+            if "box" in prompt:
+                predictor.add_new_points_or_box(
+                    inference_state=state, frame_idx=prompt["frame"], obj_id=1,
+                    box=np.array(prompt["box"], dtype=np.float32))
+            else:
+                predictor.add_new_points_or_box(
+                    inference_state=state, frame_idx=prompt["frame"], obj_id=1,
+                    points=np.array(prompt["points"], dtype=np.float32),
+                    labels=np.array(prompt["labels"], dtype=np.int32),
+                )
             written = set()
             for idx, _obj_ids, mask_logits in predictor.propagate_in_video(state):
                 mask = (mask_logits[0] > 0.0).squeeze().cpu().numpy()
@@ -98,6 +107,15 @@ def segment_sam2(cfg: dict, frames: list[Path], prompt: dict, out_dir: Path) -> 
                 write_mask(out_dir / f.name, np.zeros((h, w), bool))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+        # Free the model before the next clip; otherwise memory builds up across clips
+        # and an MPS (16 GB Mac) run slows from ~2 s/frame to >10 s/frame through swapping.
+        predictor = state = None  # drop the model and its per-video state (frame features)
+        import gc
+        gc.collect()
+        if device == "mps":
+            torch.mps.empty_cache()
+        elif device == "cuda":
+            torch.cuda.empty_cache()
 
 
 def segment_reuse(cfg: dict, clip: str, frames: list[Path], out_dir: Path) -> dict:
@@ -147,11 +165,17 @@ def run(cfg: dict, clip: str, click: list[int] | None = None, overwrite: bool = 
         print(f"  [segment] {clip}: {len(frames)} masks (reused from {reuse})")
         return
 
-    prompt = resolve_prompt(paths, click) if method != "oracle" else {"source": "oracle"}
+    use_box = "grounding" in cfg
+    prompt = resolve_prompt(paths, click, use_box) if method != "oracle" else {"source": "oracle"}
     paths["used_prompt"].write_text(json.dumps(prompt, indent=2))
 
     with timed(paths["timing"], "segment", len(frames)):
-        if method == "sam2":
+        if method == "sam2" and use_box and prompt["box"] is None:
+            # Grounding found nothing: remove nothing (counts as a grounding miss in evaluation)
+            h, w = read_image(frames[0]).shape[:2]
+            for f in frames:
+                write_mask(out_dir / f.name, np.zeros((h, w), bool))
+        elif method == "sam2":
             segment_sam2(cfg, frames, prompt, out_dir)
         elif method == "oracle":
             segment_oracle(paths, frames, out_dir)

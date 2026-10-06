@@ -1,0 +1,6 @@
+# Main environment (B0-I3, SAM 2). Same as requirements.txt plus SAM 2 and PyTorch.
+#   python3 -m venv .venv && .venv/bin/pip install -r envs/sam2.txt
+-r ../requirements.txt
+torch
+torchvision
+git+https://github.com/facebookresearch/sam2.git

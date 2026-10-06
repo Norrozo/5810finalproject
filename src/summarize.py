@@ -11,7 +11,7 @@ import csv
 import math
 from collections import defaultdict
 
-METRICS = [("JF", "J&F ↑"), ("psnr", "PSNR ↑"), ("psnr_mask", "PSNR mask ↑"), ("ssim", "SSIM ↑"),
+METRICS = [("grounding_hit", "Ground hit ↑"), ("JF", "J&F ↑"), ("psnr", "PSNR ↑"), ("psnr_mask", "PSNR mask ↑"), ("ssim", "SSIM ↑"),
            ("flicker", "Flicker ↓"), ("spf_total", "s/frame ↓")]
 
 

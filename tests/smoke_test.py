@@ -19,7 +19,8 @@ import yaml
 from PIL import Image
 
 from src import extract_frames, make_synthetic, run_pipeline, summarize
-from src.evaluate import boundary_f, jaccard
+from src.evaluate import boundary_f, box_iou, jaccard, mask_to_box
+from src.grounding import clean_prompt
 
 H, W, N = 120, 200, 10
 
@@ -57,10 +58,21 @@ def test_metrics():
     assert jaccard(a, a) == 1.0 and boundary_f(a, a, 0.008) == 1.0
     assert abs(jaccard(a, b) - 1 / 3) < 1e-9
     assert jaccard(np.zeros_like(a), np.zeros_like(a)) == 1.0
+    assert mask_to_box(a) == [10, 10, 30, 30]
+    assert box_iou([0, 0, 10, 10], [0, 0, 10, 10]) == 1.0
+    assert abs(box_iou([0, 0, 10, 10], [5, 0, 15, 10]) - 1 / 3) < 1e-9
+    assert box_iou([0, 0, 1, 1], [2, 2, 3, 3]) == 0.0
+
+
+def test_prompts():
+    assert clean_prompt("Remove the dog!") == "dog."
+    assert clean_prompt("please erase all people") == "people."
+    assert clean_prompt("black swan") == "black swan."
 
 
 def main():
     test_metrics()
+    test_prompts()
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         make_fake_davis(tmp / "DAVIS")

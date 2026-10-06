@@ -77,6 +77,7 @@ Rules:
 - Python. Runs on Google Colab with a free-tier GPU (about 16 GB VRAM) or a local GPU.
 - SAM 2 and ProPainter may need conflicting dependency versions. Keep them in **separate environments** (`envs/sam2.txt`, `envs/propainter.txt`) and connect them only through files on disk. Don't try to resolve conflicts by installing both into one environment.
 - Keep clips short (5–10 s) at about 480p. ProPainter runs out of memory on long or high-resolution clips.
+- On a 16 GB Mac (MPS): run one heavy model at a time. SAM 2, Grounding DINO and ProPainter together swap to disk and slow down 5–10x. Stages free their models when done; don't run two pipelines at once.
 - Colab sessions time out, so scripts should skip frames or clips whose outputs already exist, allowing an interrupted run to resume.
 
 ## Repository layout
@@ -90,14 +91,14 @@ src/
   inpaint/
     opencv.py       B0 baseline
     flow_guided.py  our own method (I3)
-    propainter.py   wrapper around third_party/ProPainter (I4, not yet written)
+    propainter.py   wrapper around third_party/ProPainter (I4)
   evaluate.py       all metrics
   visualize.py      side-by-side videos and stills
   run_pipeline.py   runs all stages for one config
   summarize.py      per-version Markdown table
   make_synthetic.py builds the synthetic benchmark
   extract_frames.py video file to frames
-  demo.py           Gradio app (later)
+  demo.py           Gradio app (python -m src.demo)
 tests/          smoke_test.py
 notebooks/      Colab notebooks that call src/ scripts (no core logic here)
 third_party/    external repos as git submodules, unmodified

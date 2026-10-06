@@ -26,7 +26,8 @@ def run(cfg: dict, clip: str, overwrite: bool = False) -> None:
             from src.inpaint.flow_guided import inpaint_clip
             inpaint_clip(paths["frames"], paths["masks_refined"], out_dir, inpaint_cfg)
         elif method == "propainter":
-            raise NotImplementedError("ProPainter is iteration I4: add a wrapper in src/inpaint/propainter.py")
+            from src.inpaint.propainter import inpaint_clip
+            inpaint_clip(paths["frames"], paths["masks_refined"], out_dir, inpaint_cfg)
         else:
             raise ValueError(f"Unknown inpaint method: {method}")
     print(f"  [inpaint] {clip}: {n} frames ({method})")

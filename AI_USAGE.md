@@ -30,3 +30,12 @@ The course requires a summary of how we used generative AI tools and what, if an
 - **Our review / changes:** _(fill in: be ready to explain flow completion, propagation, and the hop cap)_
 
 ---
+
+## 2026-10-05: I2 text prompts, I4 ProPainter, Gradio demo
+
+- **Tool:** Claude Code (Anthropic), Opus 5.5
+- **What it did:** Wrote `src/grounding.py` (Grounding DINO stage), box prompts in `src/segment.py`, grounding metrics in `src/evaluate.py`, `src/inpaint/propainter.py` (wrapper; ProPainter itself is the unmodified `third_party/ProPainter` submodule), `src/demo.py` (Gradio app), `configs/I2.yaml`, `configs/I4.yaml`, `configs/eval_prompts.txt`, `configs/dev_prompts.txt`, `envs/*.txt`, memory cleanup in `segment.py`/`grounding.py`. Ran I2 and I4 and wrote their log entries.
+- **Copied directly:** all of the code and log text above. All numbers come from running the scripts.
+- **Our review / changes:** _(fill in)_
+
+---

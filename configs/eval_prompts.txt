@@ -1,0 +1,13 @@
+# Text prompt for each test clip (I2+). One short noun phrase naming the pasted object,
+# written once from the object's DAVIS video name, before running anything.
+# name                        prompt
+dog_on_soapbox                dog
+camel_on_drift-straight       camel
+blackswan_on_car-roundabout   black swan
+goat_on_kite-surf             goat
+libby_on_scooter-black        dog
+cows_on_paragliding-launch    cow
+parkour_on_bike-packing       person
+breakdance_on_india           person
+horsejump-high_on_gold-fish   horse
+car-shadow_on_lab-coat        car

@@ -1,6 +1,6 @@
-# B0 baseline: click prompt + SAM 2 tracking + per-frame OpenCV inpainting.
-# For a new iteration, copy this file to configs/<tag>.yaml and change ONE thing.
-version: B0
+# I2: B0 with a TEXT prompt instead of a click: Grounding DINO box on frame 0 -> SAM 2.
+# Everything else identical to B0, so J&F differences come only from the prompt.
+version: I2
 
 data_root: data
 runs_root: runs
@@ -9,6 +9,13 @@ eval_clips: configs/eval_clips.txt
 
 # Clip limits (keep small for Colab's free GPU)
 max_frames: 60
+
+grounding:
+  method: grounding_dino
+  hf_model: IDEA-Research/grounding-dino-tiny
+  box_threshold: 0.35       # Hugging Face example defaults, not tuned
+  text_threshold: 0.25
+  prompts_file: configs/eval_prompts.txt
 max_height: 480
 
 segmentation:

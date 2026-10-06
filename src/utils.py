@@ -34,6 +34,7 @@ def clip_paths(cfg: dict, clip: str) -> dict[str, Path]:
         "gt_clean": data / "gt_clean",      # only for synthetic benchmark clips
         "prompt": data / "prompt.json",     # optional manual click for custom videos
         "run": run,
+        "boxes": run / "boxes.json",        # stage 1 output (text prompt -> box), I2+
         "masks": run / "masks",
         "masks_refined": run / "masks_refined",
         "inpainted": run / "inpainted",

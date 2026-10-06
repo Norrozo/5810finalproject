@@ -1,0 +1,6 @@
+# Text prompt for each dev clip (for tuning grounding settings; never tune on eval_prompts).
+flamingo_on_surf              flamingo
+elephant_on_car-turn          elephant
+lucia_on_hockey               person
+rhino_on_bus                  rhino
+bear_on_kite-walk             bear

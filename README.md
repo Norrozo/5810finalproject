@@ -4,14 +4,18 @@ CIS 5810 Final Project, Fall 2026 · Option 1
 
 Point at an object in the first frame of a video, and the pipeline tracks it through every frame and fills in the background so it disappears.
 
-Status: **B0** (baseline), **I1** (mask refinement), **I3/I3b** (our flow-guided inpainting) are done. See `docs/experiment_log.md` for every run.
+Status: **B0** (baseline), **I1** (mask refinement), **I2** (text prompts), **I3/I3b** (our flow-guided inpainting), **I4** (ProPainter), and the **demo** are done. See `docs/experiment_log.md` for every run.
 
-| Version | J&F ↑ | PSNR ↑ | PSNR mask ↑ | SSIM ↑ | Flicker ↓ | s/frame ↓ |
-|---|---|---|---|---|---|---|
-| B0: click + SAM 2 + Telea | 0.943 | 26.955 | 16.388 | 0.947 | 18.753 | 1.379 |
-| I1: + mask dilation | 0.943 | 26.052 | 15.507 | 0.942 | 18.918 | 1.380 |
-| I3: flow-guided fill | 0.943 | 26.544 | 15.977 | 0.942 | 16.301 | 1.503 |
-| I3b: flow-guided, max 5 hops | 0.943 | 27.068 | 16.500 | 0.945 | 16.313 | 1.512 |
+| Version | Ground hit ↑ | J&F ↑ | PSNR ↑ | PSNR mask ↑ | SSIM ↑ | Flicker ↓ | s/frame ↓ |
+|---|---|---|---|---|---|---|---|
+| B0: click + SAM 2 + Telea | – | 0.943 | 26.955 | 16.388 | 0.947 | 18.753 | 1.379 |
+| I1: + mask dilation | – | 0.943 | 26.052 | 15.507 | 0.942 | 18.918 | 1.380 |
+| I2: text prompt (Grounding DINO) | 9/10 | 0.890 | 26.143 | 15.940 | 0.943 | 19.175 | 2.158* |
+| I3: flow-guided fill | – | 0.943 | 26.544 | 15.977 | 0.942 | 16.301 | 1.503 |
+| I3b: flow-guided, max 5 hops | – | 0.943 | 27.068 | 16.500 | 0.945 | 16.313 | 1.512 |
+| I4: ProPainter | – | 0.943 | 31.706 | 21.141 | 0.969 | 9.215 | 5.429 |
+
+\* run slowed by memory swapping; see the log.
 
 (10 test clips; regenerate with `python -m src.summarize`.)
 
@@ -52,9 +56,18 @@ Test that everything except SAM 2 works, with no GPU and no downloads:
 python -m tests.smoke_test
 ```
 
+### Demo: remove things by typing
+
+```bash
+PYTORCH_ENABLE_MPS_FALLBACK=1 python -m src.demo     # open http://127.0.0.1:7860
+```
+
+Upload a video, type what to remove ("remove the dog") or click it in the first frame, and pick a fill method. Use `--share` on Colab for a public link. ProPainter needs its own environment: `python3 -m venv .venv-propainter && .venv-propainter/bin/pip install -r envs/propainter.txt`, plus `git submodule update --init`.
+
 ### Your own video
 
 ```bash
+python -m src.run_pipeline --config configs/I2.yaml --video my_clip.mp4 --name my_clip --text "remove the dog"
 python -m src.run_pipeline --config configs/B0.yaml --video my_clip.mp4 --name my_clip --click 320,240
 ```
 
@@ -93,9 +106,9 @@ B0 works end to end, but it has clear weaknesses. Each one maps to a planned ite
 | Weakness | Where it shows up | Planned fix |
 |---|---|---|
 | Masks hug the object tightly, so edge pixels and attached shadows survive | Visible halos; lower PSNR (mask) | **I1**: mask dilation and hole filling in `src/refine_masks.py` (done: hurt on this benchmark, which has no halos) |
-| Needs a manual click | Can't say "remove the dog" | **I2**: text prompts with Grounding DINO |
+| Needs a manual click | Can't say "remove the dog" | **I2**: text prompts with Grounding DINO (done: 9/10 found) |
 | Each frame is filled on its own | High flicker compared with the reference | **I3**: our own flow-guided inpainting (done: −13% flicker) |
-| Fill only uses border colors, so large holes blur | Low PSNR (mask); smeared stills | **I4**: ProPainter |
+| Fill only uses border colors, so large holes blur | Low PSNR (mask); smeared stills | **I4**: ProPainter (done: +4.75 dB, flicker halved) |
 | Prompt is on frame 0 only | Loses objects that leave and re-enter | **I5**: periodic re-detection |
 | SAM 2 large model at full resolution | Seconds per frame | **I6**: smaller model, lower resolution, chunking |
 | One object at a time | Can't remove "all the people" | **I7**: multiple objects + failure study |
@@ -134,6 +147,9 @@ data/, runs/    generated; git-ignored
 ## Attribution
 
 - **SAM 2**: Ravi et al., *SAM 2: Segment Anything in Images and Videos*, Meta AI, 2024. https://github.com/facebookresearch/sam2 (Apache 2.0)
+- **ProPainter**: Zhou et al., *ProPainter: Improving Propagation and Transformer for Video Inpainting*, ICCV 2023. https://github.com/sczhou/ProPainter (S-Lab License 1.0, non-commercial), used unmodified as a git submodule in `third_party/ProPainter`.
+- **Grounding DINO**: Liu et al., *Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object Detection*, 2023. Model `IDEA-Research/grounding-dino-tiny` via Hugging Face Transformers (Apache 2.0).
+- **Gradio** for the demo UI.
 - **DAVIS 2017**: Pont-Tuset et al., *The 2017 DAVIS Challenge on Video Object Segmentation*, 2017. https://davischallenge.org
 - **Optical flow**: Farnebäck, *Two-Frame Motion Estimation Based on Polynomial Expansion*, 2003 (OpenCV implementation). The flow-guided method follows the general idea of flow-guided video inpainting (Xu et al., *Deep Flow-Guided Video Inpainting*, CVPR 2019): complete the flow, then propagate pixels along it. Our version is classical, with no learned components.
 - **OpenCV inpainting**: Telea, *An Image Inpainting Technique Based on the Fast Marching Method*, 2004; Bertalmio et al., *Navier-Stokes, Fluid Dynamics, and Image and Video Inpainting*, 2001.

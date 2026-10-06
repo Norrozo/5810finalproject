@@ -1,0 +1,19 @@
+# ProPainter environment (I4). Kept separate from SAM 2's; the pipeline talks to it only
+# through files on disk (src/inpaint/propainter.py calls third_party/ProPainter via subprocess).
+#   python3 -m venv .venv-propainter && .venv-propainter/bin/pip install -r envs/propainter.txt
+torch
+torchvision
+av
+addict
+einops
+future
+numpy
+scipy
+opencv-python
+matplotlib
+scikit-image
+imageio-ffmpeg
+pyyaml
+requests
+timm
+yapf

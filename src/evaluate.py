@@ -11,6 +11,8 @@ Metrics (synthetic benchmark clips, which have ground truth):
   flicker    temporal inconsistency inside the region: mean |out_t - warp(out_{t-1})|,
              warping with optical flow computed on the clean GT video          (lower = better)
   flicker_ref the same measure on the GT video itself: the floor you can approach
+  grounding_iou  IoU of the text-prompt box with the GT mask's bounding box on frame 0 (I2+)
+  grounding_hit  1 if grounding_iou > 0.5 (the standard detection threshold), else 0
 Runtime (all clips, including custom videos without GT):
   spf_<stage> seconds per frame for each stage, plus spf_total
 
@@ -42,7 +44,8 @@ from skimage.metrics import structural_similarity
 from src.utils import clip_paths, list_frames, load_config, read_clip_list, read_image, read_mask
 
 COLUMNS = ["version", "clip", "n_frames", "J", "F", "JF", "psnr", "psnr_mask", "ssim",
-           "flicker", "flicker_ref", "spf_segment", "spf_refine", "spf_inpaint", "spf_total", "timestamp"]
+           "flicker", "flicker_ref", "grounding_iou", "grounding_hit",
+           "spf_ground", "spf_segment", "spf_refine", "spf_inpaint", "spf_total", "timestamp"]
 PSNR_CAP = 100.0  # identical images give infinite PSNR; cap so averages stay finite
 
 
@@ -71,6 +74,19 @@ def boundary_f(pred: np.ndarray, gt: np.ndarray, tol_frac: float) -> float:
     precision = (bp & bg_near).sum() / bp.sum()
     recall = (bg & bp_near).sum() / bg.sum()
     return 0.0 if precision + recall == 0 else float(2 * precision * recall / (precision + recall))
+
+
+def mask_to_box(mask: np.ndarray) -> list[float]:
+    ys, xs = np.where(mask)
+    return [float(xs.min()), float(ys.min()), float(xs.max() + 1), float(ys.max() + 1)]
+
+
+def box_iou(a: list[float], b: list[float]) -> float:
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
 
 
 # ---------------------------------------------------------------- image metrics
@@ -121,7 +137,7 @@ def evaluate_clip(cfg: dict, clip: str) -> dict:
     if paths["timing"].exists():
         timing = json.loads(paths["timing"].read_text())
         total = 0.0
-        for stage in ("segment", "refine", "inpaint"):
+        for stage in ("ground", "segment", "refine", "inpaint"):
             if stage in timing:
                 row[f"spf_{stage}"] = timing[stage]["sec_per_frame"]
                 total += timing[stage]["sec_per_frame"]
@@ -129,6 +145,12 @@ def evaluate_clip(cfg: dict, clip: str) -> dict:
 
     if not paths["gt_masks"].exists():
         return row  # custom video: runtime only
+
+    if paths["boxes"].exists():
+        box = json.loads(paths["boxes"].read_text())["box"]
+        gt0 = read_mask(paths["gt_masks"] / frames[0].name)
+        row["grounding_iou"] = box_iou(box, mask_to_box(gt0)) if box else 0.0
+        row["grounding_hit"] = int(row["grounding_iou"] > 0.5)
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * ev.get("region_dilation", 5) + 1,) * 2)
     Js, Fs, psnrs, psnr_masks, ssims = [], [], [], [], []
