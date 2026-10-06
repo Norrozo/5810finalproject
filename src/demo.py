@@ -27,6 +27,7 @@ METHODS = {
     "OpenCV Telea (baseline)": "configs/B0.yaml",
 }
 GROUNDING_CONFIG = "configs/I2.yaml"
+EXAMPLES_DIR = Path("showcase")  # pre-rendered before/after videos (git-ignored), shown instantly in the demo
 
 
 def demo_config(method: str, use_text: bool) -> dict:
@@ -110,7 +111,15 @@ def build_app():
                     "Clips are cut to the first 60 frames at 480p.")
         name = gr.State(None)
         click = gr.State(None)
-        with gr.Row():
+        examples = sorted(EXAMPLES_DIR.glob("[0-9]*.mp4")) if EXAMPLES_DIR.exists() else []
+        if examples:
+            # Pre-rendered results play instantly, so a presentation never waits on a live run.
+            with gr.Tab("Examples"):
+                for i in range(0, len(examples), 2):
+                    with gr.Row():
+                        for f in examples[i:i + 2]:
+                            gr.Video(str(f), label=f.stem.split("_", 1)[-1], show_label=False, autoplay=False)
+        with gr.Tab("Try it"), gr.Row():
             with gr.Column():
                 video = gr.Video(label="1. Upload a video", sources=["upload"])
                 first = gr.Image(label="2. ...or click the object here (optional)", interactive=False)

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Magic Eraser Proposal</title>
+<style>
+  @page { size: Letter; margin: 0.55in 0.6in; }
+  :root { --ink: #1a1a1a; --quiet: #555; --rule: #d0d0d0; --accent: #1f5fbf; --tint: #eef3fb; }
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9.6pt; line-height: 1.36; color: var(--ink); background: #fff; margin: 0; }
+  h1 { font-size: 16pt; margin: 0 0 2pt; }
+  .sub { color: var(--quiet); margin: 0 0 8pt; }
+  h2 { break-after: avoid; font-size: 11pt; margin: 10pt 0 3pt; padding-bottom: 2pt; border-bottom: 1px solid var(--rule); }
+  p { margin: 0 0 5pt; }
+  ul, ol { margin: 0 0 5pt; padding-left: 16pt; }
+  li { margin-bottom: 1.5pt; }
+  table { border-collapse: collapse; width: 100%; margin: 3pt 0 6pt; font-size: 8.8pt; }
+  th, td { border-bottom: 1px solid var(--rule); padding: 2.5pt 5pt; text-align: left; vertical-align: top; }
+  th { border-bottom: 1.5px solid var(--ink); font-weight: 600; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.best td { background: var(--tint); font-weight: 600; }
+  figure { margin: 4pt 0 6pt; }
+  figure img { width: 100%; display: block; }
+  figcaption { font-size: 8.2pt; color: var(--quiet); margin-top: 2pt; }
+  .meta td { border: none; padding: 0 10pt 1pt 0; font-size: 9.2pt; }
+  .meta td:first-child { white-space: nowrap; }
+  th { white-space: nowrap; }
+  table.results { break-inside: avoid; }
+  .small { font-size: 8.4pt; color: var(--quiet); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; }
+  svg text { font-family: inherit; }
+  .keep { break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<h1>Magic Eraser: Text-Driven Object Removal in Video</h1>
+<p class="sub">CIS 5810 Final Project Proposal &middot; Option 1 (assembling existing modules) &middot; October 9, 2026</p>
+
+<table class="meta">
+  <tr><td><b>Group</b> [#]</td><td>Daniel Zhang ([email]) &middot; [member 2] ([email]) &middot; [member 3] ([email])</td></tr>
+  <tr><td><b>Code</b></td><td>github.com/Norrozo/5810finalproject &mdash; every number below is in <code>results/results.csv</code> and <code>docs/experiment_log.md</code></td></tr>
+</table>
+
+<h2>1. Goals and audience</h2>
+<p>The user types what to remove (&ldquo;remove the dog&rdquo;); the system finds the object, tracks it through every frame, and fills the background so it disappears without blur or flicker. <b>Audience:</b> casual video creators who want to remove a photobomber or stray object without frame-by-frame tools such as After Effects. <b>Goals:</b> (1) remove one named object from a 5&ndash;10 s, 480p clip with no visible blur or flicker; (2) accept a text prompt, with a click as fallback; (3) measure every change against a fixed baseline; (4) contribute a method of our own (flow-guided temporal inpainting).</p>
+
+<h2>2. Pipeline design</h2>
+<div class="keep">
+<svg viewBox="0 0 760 132" width="100%" role="img" aria-label="Five-stage pipeline">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="#555"/></marker></defs>
+  <g font-size="11.5" fill="#1a1a1a">
+    <rect x="4" y="8" width="138" height="78" rx="6" fill="none" stroke="#555"/>
+    <text x="73" y="27" text-anchor="middle" font-weight="600">1. Ground</text>
+    <text x="73" y="45" text-anchor="middle" fill="#555">Grounding DINO</text>
+    <text x="73" y="61" text-anchor="middle" fill="#555">text + frame 0</text>
+    <text x="73" y="77" text-anchor="middle" fill="#555">&rarr; box</text>
+    <rect x="158" y="8" width="138" height="78" rx="6" fill="none" stroke="#555"/>
+    <text x="227" y="27" text-anchor="middle" font-weight="600">2. Track</text>
+    <text x="227" y="45" text-anchor="middle" fill="#555">SAM 2 video</text>
+    <text x="227" y="61" text-anchor="middle" fill="#555">box or click</text>
+    <text x="227" y="77" text-anchor="middle" fill="#555">&rarr; mask per frame</text>
+    <rect x="312" y="8" width="138" height="78" rx="6" fill="none" stroke="#555"/>
+    <text x="381" y="27" text-anchor="middle" font-weight="600">3. Refine</text>
+    <text x="381" y="45" text-anchor="middle" fill="#555">morphology</text>
+    <text x="381" y="61" text-anchor="middle" fill="#555">specks, holes,</text>
+    <text x="381" y="77" text-anchor="middle" fill="#555">dilation</text>
+    <rect x="466" y="8" width="138" height="78" rx="6" fill="#eef3fb" stroke="#1f5fbf" stroke-width="1.6"/>
+    <text x="535" y="27" text-anchor="middle" font-weight="600">4. Inpaint</text>
+    <text x="535" y="45" text-anchor="middle" fill="#555">Telea (B0)</text>
+    <text x="535" y="61" text-anchor="middle" fill="#555">ours: flow-guided</text>
+    <text x="535" y="77" text-anchor="middle" fill="#555">ProPainter</text>
+    <rect x="620" y="8" width="136" height="78" rx="6" fill="none" stroke="#555"/>
+    <text x="688" y="27" text-anchor="middle" font-weight="600">5. Evaluate</text>
+    <text x="688" y="45" text-anchor="middle" fill="#555">J&amp;F, PSNR, SSIM,</text>
+    <text x="688" y="61" text-anchor="middle" fill="#555">flicker, runtime</text>
+    <text x="688" y="77" text-anchor="middle" fill="#555">&rarr; results.csv</text>
+  </g>
+  <g stroke="#555" stroke-width="1.2" marker-end="url(#ar)">
+    <line x1="142" y1="47" x2="156" y2="47"/><line x1="296" y1="47" x2="310" y2="47"/>
+    <line x1="450" y1="47" x2="464" y2="47"/><line x1="604" y1="47" x2="618" y2="47"/>
+  </g>
+  <text x="380" y="112" text-anchor="middle" font-size="10.5" fill="#555">Each stage is a separate script that reads the previous stage's files and writes its own (runs/&lt;version&gt;/&lt;clip&gt;/),</text>
+  <text x="380" y="126" text-anchor="middle" font-size="10.5" fill="#555">so one stage can be swapped while the others stay fixed, and interrupted runs resume. A Gradio demo calls the same stages.</text>
+</svg>
+</div>
+<p><b>Evaluation without hand labels.</b> Real videos have no ground truth for what is behind an object, so we build a <b>synthetic benchmark</b>: an object is cut from one DAVIS 2017 video with its annotation mask and pasted onto another. A perfect removal returns the untouched background video. The <b>test set</b> is 10 such clips built from DAVIS <i>val</i> videos (40&ndash;60 frames each), frozen before any results. Hyperparameters are tuned only on a separate <b>dev set</b> of 5 clips built from DAVIS <i>train</i> videos, so no video appears in both. Iterations that do not change segmentation reuse B0's SAM 2 masks, so fill methods are compared on identical masks.</p>
+<p><b>Metrics.</b> <i>J&amp;F</i>: mask overlap (IoU) and boundary accuracy against the paste mask, as defined by DAVIS. <i>PSNR mask</i>: PSNR against the clean video inside the object region only, where the difficulty is. <i>SSIM</i>: perceptual structure. <i>Flicker</i>: mean change inside the region between consecutive frames after optical-flow alignment; the same measure on the clean video (mean 7.6) is the floor. <i>Ground hit</i>: text-prompt box IoU &gt; 0.5 with the true box.</p>
+
+<h2>3. Baseline results (B0)</h2>
+<p><b>B0</b> = a click on frame 0 (placed automatically at the deepest point of the true mask) &rarr; SAM 2 (<code>sam2.1-hiera-large</code>) &rarr; per-frame OpenCV inpainting (Telea, radius 5). B0 tracks well (J&amp;F 0.943; 0.96&ndash;0.99 on 9 of 10 clips) but <b>fills with a visible blur</b>: Telea spreads the hole's border colors inward, so large holes become a smear (PSNR mask 16.4 dB). Each frame is filled independently, so the smear changes every frame: flicker is 1.6&ndash;4.4&times; the clean video on every clip. The one tracking failure, libby (0.595), is a dog split in two by an occluder; one click tracks one half. SAM 2 takes about 97% of the 1.38 s/frame (Apple M5 GPU).</p>
+
+<div class="keep"><h2>4. Development iterations</h2>
+<table class="results">
+  <tr><th>Version</th><th>Change (one per iteration)</th><th class="n">Ground&nbsp;hit&nbsp;&uarr;</th><th class="n">J&amp;F &uarr;</th><th class="n">PSNR mask &uarr;</th><th class="n">SSIM &uarr;</th><th class="n">Flicker &darr;</th><th class="n">s/frame &darr;</th></tr>
+  <tr><td>B0</td><td>click + SAM 2 + Telea</td><td class="n">&ndash;</td><td class="n">0.943</td><td class="n">16.39</td><td class="n">0.947</td><td class="n">18.75</td><td class="n">1.38</td></tr>
+  <tr><td>I1</td><td>mask refinement: drop specks, fill holes, dilate 5 px</td><td class="n">&ndash;</td><td class="n">0.943</td><td class="n">15.51</td><td class="n">0.942</td><td class="n">18.92</td><td class="n">1.38</td></tr>
+  <tr><td>I2</td><td>text prompt via Grounding DINO instead of a click</td><td class="n">9/10</td><td class="n">0.890</td><td class="n">15.94</td><td class="n">0.943</td><td class="n">19.18</td><td class="n">2.16*</td></tr>
+  <tr><td>I3</td><td>our flow-guided inpainting (no hop cap)</td><td class="n">&ndash;</td><td class="n">0.943</td><td class="n">15.98</td><td class="n">0.942</td><td class="n">16.30</td><td class="n">1.50</td></tr>
+  <tr><td>I3b</td><td>I3 + hop cap of 5 frames (tuned on dev set)</td><td class="n">&ndash;</td><td class="n">0.943</td><td class="n">16.50</td><td class="n">0.945</td><td class="n">16.31</td><td class="n">1.51</td></tr>
+  <tr class="best"><td>I4</td><td>ProPainter (ICCV 2023)</td><td class="n">&ndash;</td><td class="n">0.943</td><td class="n">21.14</td><td class="n">0.969</td><td class="n">9.22</td><td class="n">5.43</td></tr>
+</table>
+<p class="small">Means over the 10 test clips. PSNR in dB. *I2's run was slowed by memory swapping on a 16 GB laptop; fixed afterwards, so its runtime is not a fair comparison.</p></div>
+
+<figure class="keep">
+  <img src="../../results/figures/fill_comparison.jpg" alt="Fill comparison on two test clips">
+  <figcaption>Figure 1. Frame 30 of two test clips. B0 smears; I3b copies real background from other frames (the cart in row 1) but tears; ProPainter fills cleanly. No method can recover the barrel, which the dog hides in every frame.</figcaption>
+</figure>
+
+<ul>
+  <li><b>I1 (negative result).</b> Dilation lowered every inpainting metric. Pasted objects have hard edges and no shadows, so there is no halo to remove; dilation only enlarges the hole. This exposes a limit of the benchmark. On a real video (DAVIS <i>bear</i>) a soft fur outline does survive, so I1 will be re-tested on real clips.</li>
+  <li><b>I2 (text prompts).</b> Grounding DINO's box matched the right object on 9 of 10 clips (IoU 0.94&ndash;0.99). It fixed libby (J&amp;F 0.595 &rarr; 0.953), because the box covers both halves of the split dog. It missed parkour: &ldquo;person&rdquo; matched a cyclist already in the background video (J&amp;F 0.11).</li>
+  <li><b>I3 &rarr; I3b (our method).</b> Farneb&auml;ck optical flow in both directions; flow inside the hole is replaced by a smooth fill from the surrounding background flow; hole pixels are then copied along the flow from neighbouring frames, forward and backward, with Telea as the fallback for pixels no frame shows. I3 cut flicker 13% but lowered PSNR. Measuring error by hop count showed why: copied pixels score about 18.7 dB after 1 hop but about 12 dB after 8+ hops, as flow error and interpolation blur accumulate. Capping hops at 5 (chosen on the dev set: 20.65 dB vs 19.46 uncapped and 20.13 for Telea) gives I3b, which beats B0 on PSNR and flicker.</li>
+  <li><b>I4 (ProPainter).</b> Learned flow (RAFT), learned flow completion, dual-domain propagation, and a transformer that hallucinates unseen regions. +4.75 dB PSNR mask over B0 and flicker halved, on every clip; the blur is gone. Cost: about 4&times; runtime.</li>
+</ul>
+
+<h2>5. Plan for improvements</h2>
+<ul>
+  <li><b>I5 &ndash; periodic re-detection:</b> re-run grounding every N frames and re-prompt SAM 2, for objects that leave and re-enter, and to break ties like parkour's &ldquo;person&rdquo;.</li>
+  <li><b>I6 &ndash; speed:</b> smaller SAM 2 (hiera-small/tiny), lower resolution, chunked ProPainter; target &lt; 1 s/frame at similar quality.</li>
+  <li><b>I7 &ndash; multiple objects and attached parts:</b> remove several objects per prompt (&ldquo;the player and the racket&rdquo;), and study failures. On real videos the main failures are attached objects (a tennis racket left floating), shadows outside the mask, and backgrounds hidden in every frame when the camera follows the object.</li>
+  <li><b>Evaluation:</b> add LPIPS, because PSNR rewards blur; add a small real-video set scored by J&amp;F on DAVIS's own annotations plus side-by-side visual checks.</li>
+</ul>
+
+<div class="keep"><h2>6. Timeline, milestones, member duties</h2>
+<table>
+  <tr><th>Date</th><th>Milestone</th><th>Deliverable</th></tr>
+  <tr><td>Oct 9</td><td>Proposal</td><td>B0 + 4 iterations (done)</td></tr>
+  <tr><td>Oct 12&ndash;25</td><td>First TA meeting</td><td>I1 on real clips; LPIPS; real-video eval set</td></tr>
+  <tr><td>Nov 6</td><td>I5 re-detection</td><td>logged result vs I2</td></tr>
+  <tr><td>Nov 20</td><td>Midterm report</td><td>I5 + I6 speed + updated Colab</td></tr>
+  <tr><td>Dec 6</td><td>Project Day</td><td>I7 multi-object; live demo; 5-min talk</td></tr>
+  <tr><td>Dec 10</td><td>Final report</td><td>report, code, demo video, README</td></tr>
+</table></div>
+<table>
+  <tr><th>Workstream</th><th>Owner</th></tr>
+  <tr><td>Grounding + tracking (stages 1&ndash;2; I2, I5, I7)</td><td>[member]</td></tr>
+  <tr><td>Inpainting (stages 3&ndash;4; I1, I3, I4, I6)</td><td>[member]</td></tr>
+  <tr><td>Benchmark, metrics, demo (stage 5, Gradio, Colab)</td><td>[member]</td></tr>
+</table>
+
+<h2>7. TA request (optional)</h2>
+<p>[Optional: e.g. guidance on evaluating removal quality on real videos without ground truth; GPU access beyond Colab's free tier.]</p>
+
+<p class="small"><b>References.</b> Ravi et al., SAM 2, 2024. Liu et al., Grounding DINO, 2023. Zhou et al., ProPainter, ICCV 2023. Xu et al., Deep Flow-Guided Video Inpainting, CVPR 2019. Farneb&auml;ck, Two-Frame Motion Estimation Based on Polynomial Expansion, 2003. Telea, An Image Inpainting Technique Based on the Fast Marching Method, 2004. Pont-Tuset et al., The 2017 DAVIS Challenge, 2017. <b>Generative AI:</b> Claude (Anthropic) wrote most of the code and ran the experiments with us; details and what was copied are in <code>AI_USAGE.md</code>.</p>
+
+</body>
+</html>

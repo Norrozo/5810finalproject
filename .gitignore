@@ -21,3 +21,4 @@ venv/
 !results/
 samples/
 showcase/
+.DS_Store

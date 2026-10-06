@@ -31,7 +31,11 @@ Each stage reads its input from disk and writes its output to disk (`runs/<versi
 
 ## Quick start (Colab)
 
-Open `notebooks/colab_B0.ipynb` in Colab with a T4 GPU and run the cells in order. The notebook installs everything, downloads DAVIS, builds the benchmark, runs B0, and prints the results table.
+Open `notebooks/colab.ipynb` in Colab with a T4 GPU and run the cells in order. It installs both environments, downloads DAVIS, builds the test and dev sets, runs every version, prints the results table, and can launch the demo with a public link. (`notebooks/colab_B0.ipynb` is the original B0-only notebook, kept for reproducibility.)
+
+**After pulling:** run `git submodule update --init` to fetch ProPainter (`third_party/ProPainter`).
+
+**Reports:** the proposal is `docs/proposal/proposal.pdf` (source: `proposal.html`; re-render with Chrome's "Print to PDF" or headless `--print-to-pdf`). Figures are in `results/figures/`.
 
 ## Quick start (local, with an NVIDIA GPU)
 
