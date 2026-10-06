@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Magic Eraser Slides</title>
+<style>
+  @page { size: 1280px 720px; margin: 0; }
+  :root { --ink: #16181d; --quiet: #5b6070; --rule: #d9dce3; --accent: #1f5fbf; --tint: #eaf1fc; --good: #2e7d4f; --bad: #b3261e; --bg: #ffffff; --grey: #9aa0ad; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--ink); }
+  .slide { width: 1280px; height: 720px; padding: 56px 72px 48px; position: relative; overflow: hidden; break-after: page; display: flex; flex-direction: column; }
+  .slide:last-child { break-after: auto; }
+  .kicker { font-size: 15px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+  h1 { font-size: 40px; line-height: 1.12; margin: 0 0 18px; font-weight: 700; }
+  h2 { font-size: 22px; margin: 0 0 8px; }
+  p, li { font-size: 21px; line-height: 1.4; }
+  p { margin: 0 0 12px; }
+  ul { margin: 0; padding-left: 26px; }
+  li { margin-bottom: 8px; }
+  .quiet { color: var(--quiet); }
+  .small { font-size: 16px; color: var(--quiet); }
+  .foot { position: absolute; left: 72px; right: 72px; bottom: 22px; font-size: 13px; color: var(--grey); display: flex; justify-content: space-between; }
+  .row { display: flex; gap: 20px; }
+  .col { flex: 1; min-width: 0; }
+  figure { margin: 0; }
+  figure img { width: 100%; display: block; border-radius: 6px; }
+  figcaption { font-size: 15px; color: var(--quiet); margin-top: 6px; text-align: center; }
+  .tag { display: inline-block; font-size: 14px; font-weight: 700; padding: 3px 9px; border-radius: 4px; background: var(--tint); color: var(--accent); }
+  .tag.bad { background: #fbe9e7; color: var(--bad); }
+  .tag.good { background: #e6f4ea; color: var(--good); }
+  table { border-collapse: collapse; width: 100%; font-size: 19px; }
+  th, td { padding: 9px 12px; border-bottom: 1px solid var(--rule); text-align: left; }
+  th { border-bottom: 2px solid var(--ink); font-size: 16px; color: var(--quiet); font-weight: 600; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.hl td { background: var(--tint); font-weight: 700; }
+  .big { font-size: 64px; font-weight: 800; color: var(--accent); line-height: 1; }
+  .stat { flex: 1; border-top: 3px solid var(--accent); padding-top: 12px; }
+  .stat .lbl { font-size: 18px; color: var(--quiet); margin-top: 6px; }
+  svg text { font-family: inherit; }
+  .title-slide { justify-content: center; }
+  .title-slide h1 { font-size: 60px; margin-bottom: 14px; }
+  .hero { display: flex; gap: 16px; margin-top: 26px; }
+  .hero figure { flex: 1; }
+  .step { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+  .num { flex: 0 0 34px; height: 34px; border-radius: 17px; background: var(--accent); color: #fff; font-weight: 700; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+  .step p { margin: 3px 0 0; font-size: 19px; }
+</style>
+</head>
+<body>
+
+<!-- 1. Title -->
+<section class="slide title-slide">
+  <div class="kicker">CIS 5810 Final Project &middot; Group [#]</div>
+  <h1>Magic Eraser</h1>
+  <p style="font-size:28px" class="quiet">Type what to remove from a video. It disappears.</p>
+  <div class="hero">
+    <figure><img src="img/hero_before.jpg"><figcaption>Input</figcaption></figure>
+    <figure><img src="img/hero_after.jpg"><figcaption>&ldquo;remove the person&rdquo;</figcaption></figure>
+  </div>
+  <div class="foot"><span>Daniel Zhang &middot; [member 2] &middot; [member 3]</span><span>github.com/Norrozo/5810finalproject</span></div>
+</section>
+
+<!-- 2. Problem -->
+<section class="slide">
+  <div class="kicker">The problem</div>
+  <h1>Removing an object from video takes hours of frame-by-frame editing</h1>
+  <div class="row" style="gap:48px; margin-top:10px">
+    <div class="col">
+      <h2>What makes it hard</h2>
+      <ul>
+        <li><b>Find</b> the object from a plain description</li>
+        <li><b>Track</b> it through every frame as it moves and turns</li>
+        <li><b>Fill</b> what was behind it, which the camera may never have seen</li>
+        <li>Do it <b>consistently</b>, so the fill doesn't shimmer frame to frame</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h2>Our goal</h2>
+      <ul>
+        <li>Input: a 5&ndash;10 s clip + text (&ldquo;remove the dog&rdquo;)</li>
+        <li>Output: the same clip, object gone, no blur or flicker</li>
+        <li>Audience: casual creators removing a photobomber without After Effects</li>
+        <li>Measure every change against a fixed baseline</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Option 1: assembling existing modules into an application</span><span>2</span></div>
+</section>
+
+<!-- 3. Pipeline -->
+<section class="slide">
+  <div class="kicker">System design</div>
+  <h1>Five stages, each a separate script that reads and writes files</h1>
+  <svg viewBox="0 0 1136 250" width="1136" style="margin-top:8px">
+    <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#5b6070"/></marker></defs>
+    <g font-size="17" fill="#16181d" text-anchor="middle">
+      <rect x="2" y="20" width="200" height="150" rx="10" fill="none" stroke="#5b6070" stroke-width="1.5"/>
+      <text x="102" y="56" font-size="21" font-weight="700">1. Find</text>
+      <text x="102" y="86" fill="#1f5fbf" font-weight="600">Grounding DINO</text>
+      <text x="102" y="114" fill="#5b6070">text + first frame</text>
+      <text x="102" y="140" fill="#5b6070">&rarr; a box</text>
+      <rect x="234" y="20" width="200" height="150" rx="10" fill="none" stroke="#5b6070" stroke-width="1.5"/>
+      <text x="334" y="56" font-size="21" font-weight="700">2. Track</text>
+      <text x="334" y="86" fill="#1f5fbf" font-weight="600">SAM 2</text>
+      <text x="334" y="114" fill="#5b6070">box or click</text>
+      <text x="334" y="140" fill="#5b6070">&rarr; mask per frame</text>
+      <rect x="466" y="20" width="200" height="150" rx="10" fill="none" stroke="#5b6070" stroke-width="1.5"/>
+      <text x="566" y="56" font-size="21" font-weight="700">3. Refine</text>
+      <text x="566" y="86" fill="#1f5fbf" font-weight="600">OpenCV morphology</text>
+      <text x="566" y="114" fill="#5b6070">specks, holes,</text>
+      <text x="566" y="140" fill="#5b6070">dilation</text>
+      <rect x="698" y="20" width="200" height="150" rx="10" fill="#eaf1fc" stroke="#1f5fbf" stroke-width="2.5"/>
+      <text x="798" y="56" font-size="21" font-weight="700">4. Fill</text>
+      <text x="798" y="86" fill="#5b6070">Telea (baseline)</text>
+      <text x="798" y="114" fill="#1f5fbf" font-weight="600">Ours: flow-guided</text>
+      <text x="798" y="140" fill="#5b6070">ProPainter</text>
+      <rect x="930" y="20" width="200" height="150" rx="10" fill="none" stroke="#5b6070" stroke-width="1.5"/>
+      <text x="1030" y="56" font-size="21" font-weight="700">5. Score</text>
+      <text x="1030" y="86" fill="#5b6070">J&amp;F, PSNR, SSIM,</text>
+      <text x="1030" y="114" fill="#5b6070">flicker, runtime</text>
+      <text x="1030" y="140" fill="#5b6070">&rarr; results.csv</text>
+    </g>
+    <g stroke="#5b6070" stroke-width="2" marker-end="url(#a)">
+      <line x1="202" y1="95" x2="230" y2="95"/><line x1="434" y1="95" x2="462" y2="95"/>
+      <line x1="666" y1="95" x2="694" y2="95"/><line x1="898" y1="95" x2="926" y2="95"/>
+    </g>
+    <text x="566" y="222" text-anchor="middle" font-size="18" fill="#5b6070">Swap one stage, keep the rest fixed &rarr; every iteration changes exactly one thing.</text>
+  </svg>
+  <div class="row" style="margin-top:4px; gap:36px">
+    <div class="col"><p><b>Why files between stages:</b> a crashed run resumes where it stopped, and later versions reuse the baseline's masks, so fill methods are compared on identical masks.</p></div>
+    <div class="col"><p><b>Same code everywhere:</b> the benchmark, the Colab notebook and the web demo all call these five stages.</p></div>
+  </div>
+  <div class="foot"><span>SAM 2: Meta 2024 &middot; Grounding DINO: IDEA 2023 &middot; ProPainter: ICCV 2023</span><span>3</span></div>
+</section>
+
+<!-- 4. Benchmark -->
+<section class="slide">
+  <div class="kicker">How we measure</div>
+  <h1>Real videos have no answer key, so we build one</h1>
+  <div class="row" style="gap:14px">
+    <figure class="col"><img src="img/bench_input.jpg"><figcaption><b>Input:</b> a DAVIS dog pasted onto another video</figcaption></figure>
+    <figure class="col"><img src="img/bench_mask.jpg"><figcaption><b>Tracking truth:</b> the exact paste mask</figcaption></figure>
+    <figure class="col"><img src="img/bench_gt.jpg"><figcaption><b>Fill truth:</b> the untouched video</figcaption></figure>
+  </div>
+  <div class="row" style="margin-top:22px; gap:36px">
+    <div class="col">
+      <ul>
+        <li><b>Test set:</b> 10 clips from DAVIS <i>val</i>, frozen before any results</li>
+        <li><b>Tuning set:</b> 5 clips from DAVIS <i>train</i>. Settings are chosen here, never on the test set</li>
+      </ul>
+    </div>
+    <div class="col">
+      <ul>
+        <li><b>J&amp;F</b> &uarr; did we track the right pixels?</li>
+        <li><b>PSNR mask</b> &uarr; is the filled hole close to the truth? (dB)</li>
+        <li><b>Flicker</b> &darr; does the fill shimmer? (clean video: 7.6)</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>DAVIS 2017, 480p, 40&ndash;60 frames per clip</span><span>4</span></div>
+</section>
+
+<!-- 5. Baseline -->
+<section class="slide">
+  <div class="kicker">Baseline (B0): click &rarr; SAM 2 &rarr; OpenCV Telea</div>
+  <h1>Tracking is nearly perfect; the fill is a fog</h1>
+  <div class="row" style="gap:40px; align-items:flex-start">
+    <div style="flex:1.25">
+      <div class="row" style="gap:12px">
+        <figure class="col"><img src="img/bench_input.jpg"><figcaption>Input</figcaption></figure>
+        <figure class="col"><img src="img/dog_B0.jpg"><figcaption>B0 result</figcaption></figure>
+      </div>
+      <p style="margin-top:18px">Telea fills the hole by smudging the colors at its edge inward. It never looks at other frames, so a big hole becomes a smear, and the smear changes every frame.</p>
+    </div>
+    <div class="col">
+      <div class="stat"><div class="big">0.943</div><div class="lbl">J&amp;F: tracking is nearly solved</div></div>
+      <div class="stat" style="margin-top:20px; border-color:var(--bad)"><div class="big" style="color:var(--bad)">16.4 dB</div><div class="lbl">PSNR inside the hole: visibly wrong</div></div>
+      <div class="stat" style="margin-top:20px; border-color:var(--bad)"><div class="big" style="color:var(--bad)">2.5&times;</div><div class="lbl">the clean video's flicker</div></div>
+    </div>
+  </div>
+  <div class="foot"><span>Means over 10 test clips &middot; 1.38 s/frame, 97% of it SAM 2</span><span>5</span></div>
+</section>
+
+<!-- 6. I1 + I2 -->
+<section class="slide">
+  <div class="kicker">Iterations I1 and I2</div>
+  <h1>Bigger masks hurt; text prompts work 9 of 10 times</h1>
+  <div class="row" style="gap:44px">
+    <div class="col">
+      <h2><span class="tag bad">I1</span>&nbsp; Grow the mask 5 px</h2>
+      <p>PSNR mask 16.39 &rarr; <b>15.51</b>. Pasted objects have razor-sharp edges, so there's no fuzzy halo to clean up. A bigger mask is just a bigger hole to blur.</p>
+      <p class="small">A negative result that exposes a limit of our benchmark. On a real video (a bear's fur) a halo does appear, so we'll re-test on real clips.</p>
+    </div>
+    <div class="col">
+      <h2><span class="tag good">I2</span>&nbsp; Type the object's name</h2>
+      <div class="row" style="gap:10px">
+        <figure class="col"><img src="img/ground_libby.jpg"><figcaption>&ldquo;dog&rdquo;: one box covers both halves. J&amp;F 0.60 &rarr; 0.95</figcaption></figure>
+        <figure class="col"><img src="img/ground_parkour.jpg"><figcaption>&ldquo;person&rdquo;: picked the wrong person. J&amp;F 0.11</figcaption></figure>
+      </div>
+      <p class="small" style="margin-top:8px"><span style="color:#50c850">&#9632;</span> true object &nbsp; <span style="color:#ff7828">&#9632;</span> Grounding DINO's box</p>
+    </div>
+  </div>
+  <div class="foot"><span>Grounding hit = box IoU &gt; 0.5 with the true object</span><span>6</span></div>
+</section>
+
+<!-- 7. Our method -->
+<section class="slide">
+  <div class="kicker">Iteration I3: our own method</div>
+  <h1>Flow-guided fill: copy the real background from other frames</h1>
+  <div class="row" style="gap:44px">
+    <div class="col">
+      <div class="step"><div class="num">1</div><p><b>Optical flow</b> (Farneb&auml;ck): where did each pixel move between neighboring frames?</p></div>
+      <div class="step"><div class="num">2</div><p><b>Complete the flow</b>: inside the hole the flow follows the dog, so replace it with the smooth background motion around it.</p></div>
+      <div class="step"><div class="num">3</div><p><b>Propagate</b>: follow the flow to a neighbor frame; if the background is visible there, copy it. Sweep forward and backward.</p></div>
+      <div class="step"><div class="num">4</div><p><b>Fallback</b>: whatever no frame ever saw goes to Telea.</p></div>
+    </div>
+    <div class="col">
+      <div class="row" style="gap:10px">
+        <figure class="col"><img src="img/dog_B0.jpg"><figcaption>B0: fog</figcaption></figure>
+        <figure class="col"><img src="img/dog_I3b.jpg"><figcaption>Ours: real cart recovered</figcaption></figure>
+      </div>
+      <p style="margin-top:16px">Flicker <b>&minus;13%</b>, because the same real background is copied into every frame. But PSNR <i>dropped</i> at first (16.39 &rarr; 15.98). Why?</p>
+    </div>
+  </div>
+  <div class="foot"><span>src/inpaint/flow_guided.py &middot; idea follows Xu et al., CVPR 2019, without the learned parts</span><span>7</span></div>
+</section>
+
+<!-- 8. Hop cap -->
+<section class="slide">
+  <div class="kicker">Iteration I3b: debugging our method</div>
+  <h1>Each extra hop costs accuracy, so we cap hops at 5</h1>
+  <div class="row" style="gap:40px; align-items:flex-start">
+    <div style="flex:1.3">
+      <svg viewBox="0 0 680 380" width="660" role="img" aria-label="Copied-pixel accuracy falls with each hop">
+        <g font-size="14" fill="#5b6070">
+          <line x1="70" y1="40" x2="70" y2="320" stroke="#c9ccd4"/>
+          <line x1="70" y1="320" x2="620" y2="320" stroke="#5b6070"/>
+          <g stroke="#eceef2"><line x1="70" y1="80" x2="620" y2="80"/><line x1="70" y1="160" x2="620" y2="160"/><line x1="70" y1="240" x2="620" y2="240"/></g>
+          <text x="60" y="85" text-anchor="end">20</text><text x="60" y="165" text-anchor="end">16</text><text x="60" y="245" text-anchor="end">12</text><text x="60" y="325" text-anchor="end">8</text>
+          <text x="20" y="190" transform="rotate(-90 20 190)" text-anchor="middle">PSNR of copied pixels (dB)</text>
+          <text x="125" y="345" text-anchor="middle">1</text><text x="235" y="345" text-anchor="middle">2&ndash;3</text><text x="345" y="345" text-anchor="middle">4&ndash;7</text><text x="455" y="345" text-anchor="middle">8&ndash;15</text><text x="565" y="345" text-anchor="middle">16+</text>
+          <text x="345" y="372" text-anchor="middle">frames the pixel was copied through (hops)</text>
+        </g>
+        <!-- y = 320 - (v-8)*20 -->
+        <polyline points="125,104 235,162 345,208 455,228 565,216" fill="none" stroke="#1f5fbf" stroke-width="3"/>
+        <polyline points="125,164 235,206 345,234 455,242 565,262" fill="none" stroke="#9aa0ad" stroke-width="2.2"/>
+        <polyline points="125,108 235,172 345,204 455,234 565,248" fill="none" stroke="#5b6070" stroke-width="2.2" stroke-dasharray="6 4"/>
+        <g fill="#1f5fbf"><circle cx="125" cy="104" r="5"/><circle cx="235" cy="162" r="5"/><circle cx="345" cy="208" r="5"/><circle cx="455" cy="228" r="5"/><circle cx="565" cy="216" r="5"/></g>
+        <g font-size="14" font-weight="600">
+          <text x="135" y="96" fill="#1f5fbf">dog 18.8</text>
+          <text x="575" y="212" fill="#1f5fbf">dog 13.2</text>
+          <text x="575" y="252" fill="#5b6070">breakdance</text>
+          <text x="575" y="274" fill="#9aa0ad">camel</text>
+        </g>
+        <line x1="400" y1="40" x2="400" y2="320" stroke="#b3261e" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="408" y="56" font-size="14" font-weight="600" fill="#b3261e">cap: 5 hops</text>
+      </svg>
+    </div>
+    <div class="col">
+      <p>Each hop adds a little optical-flow error and a little interpolation blur. After 8+ hops, copied pixels are <b>worse than Telea</b>.</p>
+      <p>We chose the cap on the <b>tuning set</b> (5 &rarr; 20.65 dB vs 19.46 uncapped), then ran it once on the test set.</p>
+      <table style="margin-top:6px">
+        <tr><th></th><th class="n">PSNR mask</th><th class="n">Flicker</th></tr>
+        <tr><td>B0</td><td class="n">16.39</td><td class="n">18.75</td></tr>
+        <tr class="hl"><td>I3b (ours)</td><td class="n">16.50</td><td class="n">16.31</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="foot"><span>Hop analysis on B0 masks; chart shows 3 test clips</span><span>8</span></div>
+</section>
+
+<!-- 9. ProPainter -->
+<section class="slide">
+  <div class="kicker">Iteration I4: ProPainter</div>
+  <h1>A learned video inpainter removes the fog</h1>
+  <div class="row" style="gap:10px">
+    <figure class="col"><img src="img/cows_input.jpg"><figcaption>Input</figcaption></figure>
+    <figure class="col"><img src="img/cows_B0.jpg"><figcaption>B0 Telea</figcaption></figure>
+    <figure class="col"><img src="img/cows_I3b.jpg"><figcaption>I3b ours</figcaption></figure>
+    <figure class="col"><img src="img/cows_I4.jpg"><figcaption><b>I4 ProPainter</b></figcaption></figure>
+    <figure class="col"><img src="img/cows_gt.jpg"><figcaption>Truth</figcaption></figure>
+  </div>
+  <div class="row" style="margin-top:24px; gap:40px">
+    <div class="col"><p>Same idea as ours, every step learned: RAFT flow, a network that completes flow, propagation in image and feature space, and a <b>transformer that invents</b> background no frame ever showed. That last step is exactly what our method lacks.</p></div>
+    <div class="col">
+      <div class="row" style="gap:24px">
+        <div class="stat"><div class="big">+4.75</div><div class="lbl">dB PSNR mask vs B0</div></div>
+        <div class="stat"><div class="big">&minus;51%</div><div class="lbl">flicker vs B0</div></div>
+      </div>
+      <p class="small" style="margin-top:12px">Better on all 10 clips. Cost: about 4&times; runtime.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Zhou et al., ProPainter, ICCV 2023 &middot; run in its own Python environment</span><span>9</span></div>
+</section>
+
+<!-- 10. Results summary -->
+<section class="slide">
+  <div class="kicker">Results so far</div>
+  <h1>ProPainter cut the error and halved the flicker</h1>
+  <div class="row" style="gap:30px">
+    <svg viewBox="0 0 560 360" width="560" role="img" aria-label="PSNR mask by version">
+      <text x="10" y="22" font-size="17" font-weight="700" fill="#16181d">PSNR inside the hole (dB) &uarr;</text>
+      <!-- x = 110 + v*20 ; bars from 0 -->
+      <g font-size="15" fill="#5b6070">
+        <text x="100" y="66" text-anchor="end">B0</text><text x="100" y="114" text-anchor="end">I1</text><text x="100" y="162" text-anchor="end">I2</text><text x="100" y="210" text-anchor="end">I3</text><text x="100" y="258" text-anchor="end">I3b</text><text x="100" y="306" text-anchor="end" font-weight="700" fill="#1f5fbf">I4</text>
+      </g>
+      <g fill="#9aa0ad">
+        <rect x="110" y="46" width="327.8" height="28"/><rect x="110" y="94" width="310.2" height="28"/><rect x="110" y="142" width="318.8" height="28"/><rect x="110" y="190" width="319.6" height="28"/><rect x="110" y="238" width="330" height="28"/>
+      </g>
+      <rect x="110" y="286" width="422.8" height="28" fill="#1f5fbf"/>
+      <g font-size="15" fill="#16181d">
+        <text x="443" y="65">16.4</text><text x="426" y="113">15.5</text><text x="435" y="161">15.9</text><text x="436" y="209">16.0</text><text x="446" y="257">16.5</text>
+      </g>
+      <text x="524" y="305" font-size="15" font-weight="700" fill="#ffffff" text-anchor="end">21.1</text>
+      <line x1="110" y1="40" x2="110" y2="320" stroke="#5b6070"/>
+    </svg>
+    <svg viewBox="0 0 560 360" width="560" role="img" aria-label="Flicker by version">
+      <text x="10" y="22" font-size="17" font-weight="700" fill="#16181d">Flicker &darr;</text>
+      <!-- x = 110 + v*20 -->
+      <g font-size="15" fill="#5b6070">
+        <text x="100" y="66" text-anchor="end">B0</text><text x="100" y="114" text-anchor="end">I1</text><text x="100" y="162" text-anchor="end">I2</text><text x="100" y="210" text-anchor="end">I3</text><text x="100" y="258" text-anchor="end">I3b</text><text x="100" y="306" text-anchor="end" font-weight="700" fill="#1f5fbf">I4</text>
+      </g>
+      <g fill="#9aa0ad">
+        <rect x="110" y="46" width="375" height="28"/><rect x="110" y="94" width="378.4" height="28"/><rect x="110" y="142" width="383.6" height="28"/><rect x="110" y="190" width="326" height="28"/><rect x="110" y="238" width="326.2" height="28"/>
+      </g>
+      <rect x="110" y="286" width="184.4" height="28" fill="#1f5fbf"/>
+      <g font-size="15" fill="#16181d">
+        <text x="491" y="65">18.8</text><text x="494" y="113">18.9</text><text x="500" y="161">19.2</text><text x="442" y="209">16.3</text><text x="442" y="257">16.3</text>
+      </g>
+      <text x="300" y="305" font-size="15" font-weight="700" fill="#1f5fbf">9.2</text>
+      <line x1="262" y1="36" x2="262" y2="326" stroke="#b3261e" stroke-width="1.5" stroke-dasharray="5 4"/>
+      <text x="268" y="344" font-size="14" fill="#b3261e">clean video: 7.6</text>
+      <line x1="110" y1="40" x2="110" y2="320" stroke="#5b6070"/>
+    </svg>
+  </div>
+  <p class="small" style="margin-top:4px">Means over the 10 test clips. Tracking (J&amp;F 0.943) is identical for all fill methods because they share the baseline's masks; I2 is 0.890 due to the one grounding miss.</p>
+  <div class="foot"><span>Every number: results/results.csv &middot; docs/experiment_log.md</span><span>10</span></div>
+</section>
+
+<!-- 11. Real videos -->
+<section class="slide">
+  <div class="kicker">Real videos: text prompt &rarr; SAM 2 &rarr; ProPainter</div>
+  <h1>On real clips it works when the background moves past the object</h1>
+  <div class="row" style="gap:12px">
+    <figure class="col"><img src="img/show_soccerball_before.jpg"><figcaption>&ldquo;remove the ball&rdquo;</figcaption></figure>
+    <figure class="col"><img src="img/show_soccerball_after.jpg"><figcaption><span class="tag good">clean</span></figcaption></figure>
+    <figure class="col"><img src="img/show_breakdance-flare_before.jpg"><figcaption>&ldquo;remove the person&rdquo;</figcaption></figure>
+    <figure class="col"><img src="img/show_breakdance-flare_after.jpg"><figcaption><span class="tag good">clean</span>, faint shadow</figcaption></figure>
+  </div>
+  <div class="row" style="gap:12px; margin-top:16px">
+    <figure class="col"><img src="img/show_tennis_before.jpg"><figcaption>&ldquo;remove the tennis player&rdquo;</figcaption></figure>
+    <figure class="col"><img src="img/show_tennis_after.jpg"><figcaption><span class="tag bad">racket left floating</span></figcaption></figure>
+    <figure class="col"><img src="img/bear_before.jpg"><figcaption>&ldquo;remove the bear&rdquo;</figcaption></figure>
+    <figure class="col"><img src="img/bear_after.jpg"><figcaption><span class="tag bad">smudge</span>: camera follows the bear</figcaption></figure>
+  </div>
+  <div class="foot"><span>DAVIS clips not used in the benchmark</span><span>11</span></div>
+</section>
+
+<!-- 12. Lessons + next -->
+<section class="slide">
+  <div class="kicker">What we learned &middot; what's next</div>
+  <h1>The remaining failures are about <i>what</i> to remove, not how to fill</h1>
+  <div class="row" style="gap:44px">
+    <div class="col">
+      <h2>Lessons</h2>
+      <ul>
+        <li>Measure before fixing: the hop analysis turned a failed iteration into a fix</li>
+        <li>Tune on a separate set, or the test numbers lie</li>
+        <li>PSNR rewards blur, so always look at the videos too</li>
+        <li>A pasted benchmark hides real effects: soft edges, shadows</li>
+      </ul>
+    </div>
+    <div class="col">
+      <h2>Next iterations</h2>
+      <table>
+        <tr><th>When</th><th>Iteration</th></tr>
+        <tr><td>Oct</td><td>LPIPS metric; re-test I1 on real clips</td></tr>
+        <tr><td>Nov 20</td><td><b>I5</b> re-detect every N frames &middot; <b>I6</b> speed (&lt; 1 s/frame)</td></tr>
+        <tr><td>Dec 6</td><td><b>I7</b> multiple objects (&ldquo;the player and the racket&rdquo;), shadows</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="foot"><span>Proposal Oct 9 &middot; Midterm Nov 20 &middot; Project Day Dec 6 &middot; Final Dec 10</span><span>12</span></div>
+</section>
+
+<!-- 13. Demo -->
+<section class="slide title-slide">
+  <div class="kicker">Live demo</div>
+  <h1 style="font-size:52px">Upload a video. Type what to remove.</h1>
+  <p style="font-size:24px" class="quiet">Gradio app on the same five stages &middot; <code>python -m src.demo</code> &middot; Colab: <code>notebooks/colab.ipynb</code></p>
+  <div class="hero">
+    <figure><img src="img/end_before.jpg"><figcaption>Input</figcaption></figure>
+    <figure><img src="img/end_after.jpg"><figcaption>&ldquo;remove the person&rdquo;</figcaption></figure>
+  </div>
+  <div class="foot"><span>Questions?</span><span>13</span></div>
+</section>
+
+</body>
+</html>
