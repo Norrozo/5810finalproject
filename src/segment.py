@@ -28,7 +28,7 @@ import cv2
 import numpy as np
 
 from src.utils import (clip_paths, list_frames, load_config, read_image, read_mask,
-                       record_timing, stage_done, timed, write_mask)
+                       record_timing, stage_done, timed, uses_grounding, write_mask)
 
 
 # ---------------------------------------------------------------- prompts
@@ -58,7 +58,13 @@ def resolve_prompt(paths: dict, click: list[int] | None = None, use_box: bool = 
 
 # ---------------------------------------------------------------- methods
 
-def segment_sam2(cfg: dict, frames: list[Path], prompt: dict, out_dir: Path) -> None:
+def segment_sam2(cfg: dict, frames: list[Path], prompts: list[dict]) -> list[np.ndarray]:
+    """Track one object with SAM 2 and return a boolean mask per frame.
+
+    `prompts` = one or more {"frame": k, "box": [x0, y0, x1, y1]} or
+    {"frame": k, "points": [[x, y]], "labels": [1]}. B0/I2 pass one prompt on frame 0;
+    I5 adds correction boxes on later frames, which SAM 2 treats as extra conditioning frames.
+    """
     import torch
     from sam2.sam2_video_predictor import SAM2VideoPredictor
 
@@ -75,6 +81,8 @@ def segment_sam2(cfg: dict, frames: list[Path], prompt: dict, out_dir: Path) -> 
     use_bf16 = device == "cuda" and torch.cuda.get_device_capability()[0] >= 8
     autocast = torch.autocast("cuda", dtype=torch.bfloat16) if use_bf16 else contextlib.nullcontext()
 
+    h, w = read_image(frames[0]).shape[:2]
+    masks = [np.zeros((h, w), bool) for _ in frames]  # frames SAM 2 skips stay empty
     # SAM 2's video loader expects a folder of JPEGs named 00000.jpg, 00001.jpg, ...
     tmp = Path(tempfile.mkdtemp(prefix="sam2_frames_"))
     try:
@@ -84,27 +92,19 @@ def segment_sam2(cfg: dict, frames: list[Path], prompt: dict, out_dir: Path) -> 
         with torch.inference_mode(), autocast:
             state = predictor.init_state(video_path=str(tmp),
                                          offload_video_to_cpu=seg_cfg.get("offload_video_to_cpu", True))
-            if "box" in prompt:
-                predictor.add_new_points_or_box(
-                    inference_state=state, frame_idx=prompt["frame"], obj_id=1,
-                    box=np.array(prompt["box"], dtype=np.float32))
-            else:
-                predictor.add_new_points_or_box(
-                    inference_state=state, frame_idx=prompt["frame"], obj_id=1,
-                    points=np.array(prompt["points"], dtype=np.float32),
-                    labels=np.array(prompt["labels"], dtype=np.int32),
-                )
-            written = set()
+            for p in prompts:
+                if "box" in p:
+                    predictor.add_new_points_or_box(
+                        inference_state=state, frame_idx=p["frame"], obj_id=1,
+                        box=np.array(p["box"], dtype=np.float32))
+                else:
+                    predictor.add_new_points_or_box(
+                        inference_state=state, frame_idx=p["frame"], obj_id=1,
+                        points=np.array(p["points"], dtype=np.float32),
+                        labels=np.array(p["labels"], dtype=np.int32),
+                    )
             for idx, _obj_ids, mask_logits in predictor.propagate_in_video(state):
-                mask = (mask_logits[0] > 0.0).squeeze().cpu().numpy()
-                write_mask(out_dir / frames[idx].name, mask)
-                written.add(idx)
-
-        # Safety net: any frame SAM 2 skipped gets an empty mask so later stages don't crash.
-        h, w = read_image(frames[0]).shape[:2]
-        for i, f in enumerate(frames):
-            if i not in written:
-                write_mask(out_dir / f.name, np.zeros((h, w), bool))
+                masks[idx] = (mask_logits[0] > 0.0).squeeze().cpu().numpy()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
         # Free the model before the next clip; otherwise memory builds up across clips
@@ -116,6 +116,37 @@ def segment_sam2(cfg: dict, frames: list[Path], prompt: dict, out_dir: Path) -> 
             torch.mps.empty_cache()
         elif device == "cuda":
             torch.cuda.empty_cache()
+    return masks
+
+
+def redetect_corrections(masks: list[np.ndarray], keyframes: dict, rd_cfg: dict) -> list[dict]:
+    """I5: decide where the tracker has lost the object, using detections on every N-th frame.
+
+    On each keyframe k with a confident detection (score >= min_score), the track is
+    corrected with the best detection if either
+      - the tracked mask is (nearly) empty: the object was lost, e.g. after leaving the
+        frame or a long occlusion, or
+      - the tracked mask overlaps no detection (box IoU < match_iou): it drifted onto
+        something that does not match the prompt.
+    A track that still sits on one of the detections is left alone, so a correct track
+    is never switched to a look-alike.
+    """
+    from src.evaluate import box_iou, mask_to_box
+    corrections = []
+    for k_str, cands in sorted(keyframes.items(), key=lambda kv: int(kv[0])):
+        k = int(k_str)
+        dets = [c for c in cands if c["score"] >= rd_cfg.get("min_score", 0.35)]
+        if not dets:
+            continue
+        m = masks[k]
+        if m.mean() < rd_cfg.get("min_area_frac", 0.001):
+            reason = "lost"
+        elif max(box_iou(mask_to_box(m), d["box"]) for d in dets) < rd_cfg.get("match_iou", 0.3):
+            reason = "drifted"
+        else:
+            continue
+        corrections.append({"frame": k, "box": dets[0]["box"], "score": dets[0]["score"], "reason": reason})
+    return corrections
 
 
 def segment_reuse(cfg: dict, clip: str, frames: list[Path], out_dir: Path) -> dict:
@@ -165,7 +196,7 @@ def run(cfg: dict, clip: str, click: list[int] | None = None, overwrite: bool = 
         print(f"  [segment] {clip}: {len(frames)} masks (reused from {reuse})")
         return
 
-    use_box = "grounding" in cfg
+    use_box = uses_grounding(cfg)
     prompt = resolve_prompt(paths, click, use_box) if method != "oracle" else {"source": "oracle"}
     paths["used_prompt"].write_text(json.dumps(prompt, indent=2))
 
@@ -176,7 +207,18 @@ def run(cfg: dict, clip: str, click: list[int] | None = None, overwrite: bool = 
             for f in frames:
                 write_mask(out_dir / f.name, np.zeros((h, w), bool))
         elif method == "sam2":
-            segment_sam2(cfg, frames, prompt, out_dir)
+            masks = segment_sam2(cfg, frames, [prompt])
+            keyframes = json.loads(paths["boxes"].read_text()).get("keyframes") if use_box else None
+            if keyframes:
+                corrections = redetect_corrections(masks, keyframes, cfg["grounding"].get("redetect", {}))
+                prompt["corrections"] = corrections
+                paths["used_prompt"].write_text(json.dumps(prompt, indent=2))
+                if corrections:
+                    print(f"  [segment] {clip}: re-detection corrected frames "
+                          f"{[c['frame'] for c in corrections]}, re-tracking")
+                    masks = segment_sam2(cfg, frames, [prompt] + corrections)
+            for f, m in zip(frames, masks):
+                write_mask(out_dir / f.name, m)
         elif method == "oracle":
             segment_oracle(paths, frames, out_dir)
         else:

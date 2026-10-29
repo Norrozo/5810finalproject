@@ -1,0 +1,18 @@
+# REAL DEV set for grounding choices (DAVIS 2017 *train* videos, so no overlap with the
+# real test set). Scenes with several objects of the same kind; prompts written the way a
+# user would describe object 1. Scored on frame 0 only: does the chosen box hit object 1?
+# name               davis_clip      object_id  prompt
+rdev_crossing        crossing        1   man in dark clothes
+rdev_dancing         dancing         1   woman in pink dress
+rdev_lindy-hop       lindy-hop       1   woman in white shirt
+rdev_schoolgirls     schoolgirls     1   girl in blue shirt
+rdev_walking         walking         1   bearded man
+rdev_boxing          boxing-fisheye  1   boxer in blue helmet
+rdev_dog-gooses      dog-gooses      1   dog
+rdev_hockey          hockey          1   hockey player
+rdev_tuk-tuk         tuk-tuk         1   girl on the left
+rdev_upside-down     upside-down     1   man with sunglasses
+rdev_kid-football    kid-football    1   boy in orange jersey
+rdev_skate-park      skate-park      1   skateboarder
+rdev_cat-girl        cat-girl        1   girl
+rdev_bmx-bumps       bmx-bumps       1   bmx rider

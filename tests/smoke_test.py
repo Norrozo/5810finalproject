@@ -64,6 +64,28 @@ def test_metrics():
     assert box_iou([0, 0, 1, 1], [2, 2, 3, 3]) == 0.0
 
 
+def test_redetect():
+    from src.segment import redetect_corrections
+    m = np.zeros((100, 100), bool); m[20:40, 20:40] = True
+    det_here = [{"box": [20, 20, 40, 40], "score": 0.9}]
+    det_far = [{"box": [60, 60, 90, 90], "score": 0.9}]
+    masks = [m, np.zeros_like(m), m, m]
+    kf = {"1": det_far, "2": det_here, "3": det_far}
+    out = redetect_corrections(masks, kf, {"min_score": 0.35, "min_area_frac": 0.001, "match_iou": 0.3})
+    assert [(c["frame"], c["reason"]) for c in out] == [(1, "lost"), (3, "drifted")], out
+    weak = {"1": [{"box": [60, 60, 90, 90], "score": 0.1}]}
+    assert redetect_corrections(masks, weak, {}) == [], "low-score detections must be ignored"
+
+
+def test_ambiguity():
+    from src.grounding import is_ambiguous, simulated_choice
+    close = [{"box": [0, 0, 10, 10], "score": 0.44}, {"box": [50, 50, 60, 60], "score": 0.42}]
+    clear = [{"box": [0, 0, 10, 10], "score": 0.90}, {"box": [50, 50, 60, 60], "score": 0.30}]
+    assert is_ambiguous(close, 0.7) and not is_ambiguous(clear, 0.7) and not is_ambiguous(close[:1], 0.7)
+    gt = np.zeros((100, 100), bool); gt[50:60, 50:60] = True
+    assert simulated_choice(close, gt) == 1, "simulated user must pick the box on the true object"
+
+
 def test_prompts():
     assert clean_prompt("Remove the dog!") == "dog."
     assert clean_prompt("please erase all people") == "people."
@@ -73,6 +95,8 @@ def test_prompts():
 def main():
     test_metrics()
     test_prompts()
+    test_redetect()
+    test_ambiguity()
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         make_fake_davis(tmp / "DAVIS")
@@ -82,6 +106,7 @@ def main():
         cfg.update(version="SMOKE", data_root=str(tmp / "data"), runs_root=str(tmp / "runs"),
                    results_csv=str(tmp / "results.csv"), eval_clips=str(tmp / "clips.txt"))
         cfg["segmentation"]["method"] = "oracle"
+        cfg["evaluation"]["deep_metrics"] = False  # LPIPS/RAFT need downloads and 128+ px frames
         cfg_path = tmp / "smoke.yaml"
         cfg_path.write_text(yaml.safe_dump(cfg))
 

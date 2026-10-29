@@ -1,0 +1,7 @@
+# Overlay: run any version on the REAL clip set instead of the synthetic benchmark.
+#   python -m src.run_pipeline --config configs/B0.yaml --overlay configs/real_set.yaml
+# Results go to a separate CSV so they never mix with the synthetic numbers.
+eval_clips: configs/real_clips.txt
+results_csv: results/real_results.csv
+grounding:
+  prompts_file: configs/real_clips.txt

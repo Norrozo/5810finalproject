@@ -1,0 +1,32 @@
+# Grounding variant for the real DEV set only (I2 + CLIP product re-rank, normal 0.35 pool). Scored by src/eval_grounding.py.
+version: gB_clip_only
+data_root: data
+runs_root: runs
+results_csv: results/results.csv
+eval_clips: configs/eval_clips.txt
+max_frames: 60
+grounding:
+  method: grounding_dino
+  hf_model: IDEA-Research/grounding-dino-tiny
+  box_threshold: 0.35
+  text_threshold: 0.25
+  prompts_file: configs/eval_prompts.txt
+  rerank:
+    method: clip
+    hf_model: openai/clip-vit-base-patch16
+    pool_threshold: 0.35
+    pool_size: 10
+max_height: 480
+segmentation:
+  method: sam2
+  hf_model: facebook/sam2.1-hiera-large
+  offload_video_to_cpu: true
+refine:
+  threshold: 127
+inpaint:
+  method: opencv
+  opencv_method: telea
+  radius: 5
+evaluation:
+  boundary_tolerance: 0.008
+  region_dilation: 5

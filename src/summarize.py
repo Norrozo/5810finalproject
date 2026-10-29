@@ -12,7 +12,7 @@ import math
 from collections import defaultdict
 
 METRICS = [("grounding_hit", "Ground hit ↑"), ("JF", "J&F ↑"), ("psnr", "PSNR ↑"), ("psnr_mask", "PSNR mask ↑"), ("ssim", "SSIM ↑"),
-           ("flicker", "Flicker ↓"), ("spf_total", "s/frame ↓")]
+           ("lpips_mask", "LPIPS mask ↓"), ("flicker", "Flicker ↓"), ("flicker_raft", "Flicker RAFT ↓"), ("spf_total", "s/frame ↓")]
 
 
 def to_float(v):

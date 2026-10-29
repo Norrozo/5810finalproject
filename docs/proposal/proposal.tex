@@ -1,0 +1,120 @@
+\documentclass[11pt]{article}
+\usepackage[margin=.75in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+
+% Placeholder for values still to fill in
+\newcommand{\tbd}[1]{[#1]}
+\title{\vspace{-30pt}Text Driven Object Removal in Video}
+\author{
+  Group 35\\
+  Daniel Zhang \quad \texttt{danielz0@engineering.upenn.edu}\\
+  William Huang \quad \texttt{whuang28@engineering.upenn.edu}
+}
+
+\begin{document}
+\maketitle
+\vspace{-20pt}
+\begin{abstract}
+We propose a system that removes an object from a video given a text prompt such as ``remove the dog,'' filling in a believable background in every frame. Our pipeline combines Grounding DINO for text grounding, SAM~2 for video segmentation and tracking, and a sequence of inpainting methods. Our prototype already removes an object end to end from either a click or a text prompt. On a 10-clip synthetic benchmark, the per-frame baseline tracks well (J\&F 0.943) but fills the hole with a visible smear (16.4\,dB PSNR inside the mask). Early experiments show that temporal inpainting is the main lever: ProPainter raises PSNR in the mask by 4.75\,dB and halves flicker. The next stage of work focuses on our own temporally consistent inpainting method.
+\end{abstract}
+
+\section{Problem Statement}
+Removing an object from a single photo is common in many photo editing software, but removing it from video is much harder. The object must be found and outlined in every frame, and the filled-in background must stay consistent from frame to frame without flickering. Our audience is casual creators cleaning up phone videos, people protecting privacy by erasing bystanders, faces or license plates before sharing, and students who want an open pipeline that shows where each component succeeds and fails.
+
+\section{Proposed Method}
+The pipeline takes a video and a text prompt through four stages, each a separate script that writes its output to disk, followed by evaluation. Because stages communicate only through files, one stage can be swapped while the others stay fixed, and later iterations reuse the baseline's masks so that inpainting methods are compared on identical masks. A Gradio interface lets a user upload a video, type a prompt or click the object, and view the result.
+
+\begin{enumerate}
+  \item \textbf{Grounding.} Grounding DINO~\cite{liu2024grounding} locates the described object and returns a bounding box on the first frame. It is open-vocabulary, so it works for any object that can be described, with no training.
+  \item \textbf{Segmentation and tracking.} SAM~2~\cite{ravi2024sam2} converts the box (or a click) into a mask and propagates it through the clip. Its memory mechanism tracks objects through motion and brief occlusion.
+  \item \textbf{Mask refinement.} Morphological operations remove stray specks, fill interior holes, and dilate each mask, so that a thin edge of the object does not survive into the fill.
+  \item \textbf{Inpainting.} The masked region is filled. We use a per-frame baseline (OpenCV Telea~\cite{telea2004}), our own flow-guided propagation, and ProPainter~\cite{zhou2023propainter}, and will add a flow-initialized diffusion method (Section~\ref{sec:future}).
+\end{enumerate}
+
+\section{Prototype}
+Our prototype runs end to end on a laptop GPU (Apple M5, PyTorch MPS); the same scripts are packaged in a Colab notebook. The user clicks the object on the first frame or types a prompt, SAM~2 propagates the mask through the clip, the mask is optionally refined, and the hole is filled. Each run saves a side-by-side video (original, mask overlay, result) and computes all metrics. Text grounding (I2), our flow-guided inpainting (I3b) and ProPainter (I4) are implemented in preliminary form; the homography and diffusion variants (I3a, I3c) are not yet implemented.
+
+\section{Baseline Results}
+\paragraph{Setup.} Real videos have no ground-truth background, so we evaluate on a synthetic set: we cut an object out of one DAVIS 2017~\cite{pont2017davis} video using its annotation mask, paste it onto a different DAVIS video, remove it, and compare the result with the untouched original. The test set has 10 such clips (40--60 frames at 480p) built from DAVIS validation videos and was fixed before any results. Hyperparameters are tuned only on a separate dev set of 5 clips built from DAVIS training videos, so no video appears in both; tuning on the test set would make its numbers optimistic.
+
+\paragraph{Metrics and why we chose them.} A removal can fail in three separate ways: the wrong pixels are masked, the hole is filled with the wrong content, or the fill changes from frame to frame. We measure each separately, so a bad result can be traced to the stage that caused it.
+\begin{itemize}
+  \item \textbf{J\&F} (segmentation). J is the IoU between the predicted and true masks; F is the F-measure of their boundaries. We use it because it is the standard DAVIS metric, so our numbers are comparable to published SAM~2 results, and because boundaries matter for removal: a mask that misses the object's edge leaves a visible outline even if its IoU is high. J\&F is computed on the raw SAM~2 masks, so mask refinement (which deliberately grows the mask) is judged by its effect on the fill, not penalized as worse tracking.
+  \item \textbf{Grounding hit rate} (text prompts). A box counts as a hit if its IoU with the true object's box on the first frame exceeds 0.5, the standard detection threshold. It separates ``found the wrong object'' from ``tracked the right object badly.''
+  \item \textbf{PSNR and PSNR\textsubscript{mask}} (fill accuracy). PSNR against the clean video is the standard metric in the video inpainting literature, including ProPainter~\cite{zhou2023propainter}. Over the whole frame, however, it is dominated by the pixels outside the mask, which every method leaves untouched, so real differences look small. PSNR\textsubscript{mask} scores only the object region, dilated by 5 pixels to include the boundary where seams and outlines appear, and is our main fill metric.
+  \item \textbf{SSIM} (structure). PSNR averages pixel errors and favors smooth, blurry fills, while SSIM compares local structure and texture and tracks perceived quality more closely. Since SSIM is also imperfect, we will add LPIPS (Section~\ref{sec:future}).
+  \item \textbf{Flicker} (temporal consistency). Per-frame metrics cannot see the defect that most separates video from image inpainting: a fill that changes every frame. We warp each output frame onto the next using Farneb\"ack optical flow~\cite{farneback2003} computed on the clean video, so real camera and object motion is not counted, then take the mean absolute difference inside the region. Using the clean video's flow keeps the alignment the same for every method. Real video also changes slightly between frames (noise, lighting, flow error), so the same measure on the clean video, 7.6 on average, is the floor, not zero.
+  \item \textbf{Runtime} (usability). Seconds per frame on the Apple M5 GPU, recorded per stage, show whether the system is practical for casual creators and which stage to speed up.
+\end{itemize}
+
+\paragraph{Baseline (B0).} The baseline uses a click prompt (placed automatically at the deepest point of the ground-truth mask, so runs are repeatable), SAM~2 propagation (\texttt{sam2.1-hiera-large}), and per-frame Telea inpainting (radius 5). Results are in Table~\ref{tab:results}. B0 tracks almost perfectly (J\&F 0.96--0.99 on 9 of 10 clips) but fills poorly: PSNR inside the mask is only 16.4\,dB, and flicker is 1.6--4.4$\times$ the clean video on every clip. We observe three failure types: smears in large holes, because Telea propagates only from the hole boundary and never uses other frames; flicker, because each frame is filled without reference to its neighbors; and one segmentation failure, where the pasted object is split into two pieces by an occluder and a single click tracks only one piece (J\&F 0.595). SAM~2 accounts for about 97\% of the 1.38\,s per frame.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcccccc}
+\toprule
+Version & J\&F & PSNR (dB) & PSNR\textsubscript{mask} (dB) & SSIM & Flicker & s/frame \\
+\midrule
+B0: click + SAM 2 + Telea & 0.943 & 26.96 & 16.39 & 0.947 & 18.75 & 1.38 \\
+I1: + specks, hole filling, dilation & 0.943 & 26.05 & 15.51 & 0.942 & 18.92 & 1.38 \\
+I2: text prompt (Grounding DINO) & 0.890 & 26.14 & 15.94 & 0.943 & 19.18 & 2.16$^*$ \\
+I3b: flow-guided propagation (ours) & 0.943 & 27.07 & 16.50 & 0.945 & 16.31 & 1.51 \\
+I4: ProPainter & 0.943 & 31.71 & 21.14 & 0.969 & 9.22 & 5.43 \\
+\bottomrule
+\end{tabular}
+\caption{Means over the 10 synthetic test clips. J\&F scores the raw SAM~2 masks; I1, I3b and I4 reuse B0's masks, so their J\&F is identical. $^*$The I2 run was slowed by memory swapping on the 16\,GB laptop and is not a fair speed comparison.}
+\label{tab:results}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{fill_comparison.jpg}
+\caption{Frame 30 of two test clips. B0 smears; our flow-guided fill (I3b) copies real background from other frames (the cart in the top row) but tears; ProPainter (I4) fills cleanly. No method recovers the barrel, which the dog hides in every frame.}
+\label{fig:fill}
+\end{figure}
+
+\section{Iteration Results}
+\paragraph{I1: Mask refinement.} We hypothesized that SAM~2 masks stop a few pixels short of the true object boundary, leaving a halo that gets smeared into the fill, so enlarging the mask should help at a small cost in extra area to fill. We remove connected components under 100 pixels, fill holes enclosed by the mask (flood fill from the border), and dilate with a 5-pixel elliptical kernel, leaving all other components unchanged. The settings were fixed in advance, not tuned. I1 lowered every inpainting metric (PSNR\textsubscript{mask} 16.39 $\to$ 15.51\,dB). The pasted objects have hard edges and no shadows, so there was no halo to remove, and dilation only enlarged the hole for Telea to blur. This is a limitation of our synthetic benchmark: on a real DAVIS video (a bear with soft fur) a faint outline does survive, so we will re-test I1 on real clips. Better masks cannot fix the fill: the remaining smears and flicker come from filling each frame independently, which motivates the inpainting work below.
+
+\paragraph{Preliminary results beyond I1.} \textbf{I2} (text prompt): Grounding DINO's box matched the right object on 9 of 10 clips (box IoU 0.94--0.99). It fixed the split-object clip (J\&F 0.595 $\to$ 0.953), because one box covers both pieces, but missed one clip where ``person'' matched a person already in the background video (J\&F 0.11). \textbf{I3b} (our flow-guided propagation): we compute Farneb\"ack flow in both directions, replace the flow inside the hole with a smooth fill from the surrounding background flow, copy hole pixels along the flow from neighboring frames in a forward and a backward sweep, and fall back to Telea where no frame shows the background. Without limits, this cut flicker by 13\% but lowered PSNR\textsubscript{mask}. Measuring error by the number of frames a pixel was copied through showed why: about 18.7\,dB after one hop versus about 12\,dB after eight or more, as flow error and interpolation blur accumulate. Capping propagation at 5 hops (chosen on the dev set: 20.65\,dB versus 19.46 uncapped and 20.13 for Telea) gives the I3b row in Table~\ref{tab:results}. \textbf{I4} (ProPainter, run unmodified on the same masks): +4.75\,dB PSNR\textsubscript{mask} over B0 and half the flicker, better on every clip, at about 4$\times$ the runtime (Figure~\ref{fig:fill}).
+
+\section{Future Work}\label{sec:future}
+The next stage builds a temporally consistent fill that copies real background wherever it was ever visible and uses diffusion only where it never was. Each iteration changes one component and is measured on the same fixed test set. ProPainter (I4) now serves as the reference our own method is compared against.
+
+\paragraph{Inpainting progression.}
+\begin{itemize}
+  \item \textbf{I3a: Global alignment and temporal fill.} Align neighboring frames to the current frame with a homography (ORB features and RANSAC), then fill each masked pixel with the median of aligned frames where it was unmasked. This handles static and panning cameras.
+  \item \textbf{I3b: Flow-guided propagation.} A first version is implemented (Section~5). Next, we will add a forward-backward consistency check to reject bad matches, following~\cite{xu2019deep,gao2020flow}, which should allow longer propagation than the current 5-hop cap.
+  \item \textbf{I3c: Flow-initialized diffusion.} Build each frame's starting point from the propagated pixels of I3b plus the previous frame's generated fill warped forward along the flow, add partial noise, and denoise inside the mask with an image diffusion inpainter, in the style of SDEdit~\cite{meng2022sdedit}. Starting from the neighbors' content rather than pure noise keeps frames consistent. A strength parameter trades fidelity to real pixels against generated content; we will sweep it from 0 to 1 on the dev set and report flicker against perceptual quality.
+  \item \textbf{I4: External comparisons.} ProPainter~\cite{zhou2023propainter} is done; we will add a video diffusion model such as DiffuEraser~\cite{li2025diffueraser} on the same masks, comparing our lightweight hybrid against learned propagation and end-to-end generation.
+\end{itemize}
+As a stretch goal, we may improve the consistency of I3c by inpainting neighboring frames jointly in a grid~\cite{kara2024rave} or by sharing self-attention across frames~\cite{khachatryan2023text2video}.
+
+\paragraph{Other iterations.} I2 (text prompts) is implemented; its one miss motivates I5, which re-runs detection every $N$ frames to recover objects that leave and re-enter the frame and to resolve ambiguous prompts. I6 targets a 2$\times$ speedup through a smaller SAM~2 model, lower resolution, and chunked processing. I7 handles multi-object prompts such as ``remove all people'' and includes a study of failure cases; on real videos we already see attached objects left behind (a tennis racket when removing the player), shadows outside the mask, and backgrounds hidden in every frame when the camera follows the object.
+
+\paragraph{Evaluation additions.} We will add LPIPS alongside PSNR and SSIM, since PSNR rewards blur and a diffusion fill can look correct while differing from the true background pixel by pixel. We will report coverage, the share of masked pixels filled by propagation versus generation. We will compute the flicker metric with RAFT, a different flow estimator than the one inside our method, so the metric does not favor our own flow. We will add a small set of real (non-synthetic) DAVIS clips scored by J\&F on their own annotations, and the synthetic set will include both fast-moving and nearly static objects, since difficulty depends on how much background is ever revealed.
+
+\paragraph{Timeline and duties.} The midterm report (November 20) will cover I3a, I3c and the evaluation additions, with I2, I3b and I4 extended from their preliminary versions; the final report (December 10) will cover I5 through I7, with Project Day on December 6. Daniel Zhang is responsible for grounding, tracking, mask refinement and re-detection (I1, I2, I5), as well as the DAVIS subset, synthetic benchmark and metric scripts. William Huang is responsible for the inpainting methods (I3a--I3c), external comparisons (I4) and speed improvements (I6). Both members share the Gradio demo, demo video and failure study (I7).
+
+\begin{thebibliography}{99}
+\small
+\bibitem{farneback2003} G.~Farneb\"ack. Two-frame motion estimation based on polynomial expansion. In \emph{SCIA}, 2003.
+\bibitem{gao2020flow} C.~Gao, A.~Saraf, J.-B.~Huang, and J.~Kopf. Flow-edge guided video completion. In \emph{ECCV}, 2020.
+\bibitem{kara2024rave} O.~Kara, B.~Kurtkaya, H.~Yesiltepe, J.~M.~Rehg, and P.~Yanardag. RAVE: Randomized noise shuffling for fast and consistent video editing with diffusion models. In \emph{CVPR}, 2024.
+\bibitem{khachatryan2023text2video} L.~Khachatryan et al. Text2Video-Zero: Text-to-image diffusion models are zero-shot video generators. In \emph{ICCV}, 2023.
+\bibitem{li2025diffueraser} X.~Li et al. DiffuEraser: A diffusion model for video inpainting. \emph{arXiv preprint}, 2025.
+\bibitem{liu2024grounding} S.~Liu et al. Grounding DINO: Marrying DINO with grounded pre-training for open-set object detection. In \emph{ECCV}, 2024.
+\bibitem{meng2022sdedit} C.~Meng et al. SDEdit: Guided image synthesis and editing with stochastic differential equations. In \emph{ICLR}, 2022.
+\bibitem{pont2017davis} J.~Pont-Tuset et al. The 2017 DAVIS challenge on video object segmentation. \emph{arXiv preprint arXiv:1704.00675}, 2017.
+\bibitem{ravi2024sam2} N.~Ravi et al. SAM 2: Segment anything in images and videos. \emph{arXiv preprint arXiv:2408.00714}, 2024.
+\bibitem{telea2004} A.~Telea. An image inpainting technique based on the fast marching method. \emph{Journal of Graphics Tools}, 9(1):23--34, 2004.
+\bibitem{xu2019deep} R.~Xu, X.~Li, B.~Zhou, and C.~C.~Loy. Deep flow-guided video inpainting. In \emph{CVPR}, 2019.
+\bibitem{zhou2023propainter} S.~Zhou, C.~Li, K.~C.~K.~Chan, and C.~C.~Loy. ProPainter: Improving propagation and transformer for video inpainting. In \emph{ICCV}, 2023.
+\end{thebibliography}
+
+\end{document}

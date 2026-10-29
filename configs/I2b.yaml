@@ -1,0 +1,42 @@
+# I2b: I2 + candidate re-ranking. Grounding DINO proposes boxes with a lower threshold
+# (wider pool); each is scored by detector confidence x CLIP probability for the whole
+# prompt. Designed on the dev clips only; settings fixed before any test run. Else = I2.
+version: I2b
+
+data_root: data
+runs_root: runs
+results_csv: results/results.csv
+eval_clips: configs/eval_clips.txt
+
+# Clip limits (keep small for Colab's free GPU)
+max_frames: 60
+
+grounding:
+  method: grounding_dino
+  hf_model: IDEA-Research/grounding-dino-tiny
+  box_threshold: 0.35       # Hugging Face example defaults, not tuned
+  text_threshold: 0.25
+  prompts_file: configs/eval_prompts.txt
+  rerank:
+    method: clip
+    hf_model: openai/clip-vit-base-patch16
+    pool_threshold: 0.2     # candidate pool (I2 keeps only boxes >= 0.35)
+    pool_size: 10
+max_height: 480
+
+segmentation:
+  method: sam2              # sam2 | oracle (oracle copies ground-truth masks; for debugging/ablations)
+  hf_model: facebook/sam2.1-hiera-large
+  offload_video_to_cpu: true
+
+refine:
+  threshold: 127            # B0 only binarizes. No dilation or hole filling yet.
+
+inpaint:
+  method: opencv            # opencv | flow_guided (I3) | propainter (I4)
+  opencv_method: telea      # telea | ns
+  radius: 5
+
+evaluation:
+  boundary_tolerance: 0.008 # fraction of image diagonal, as in DAVIS
+  region_dilation: 5        # px added around the GT mask when scoring the filled region

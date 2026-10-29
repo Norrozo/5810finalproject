@@ -99,6 +99,15 @@ Results accumulate in `results/results.csv`, with one row per (version, clip). R
 
 J&F scores the raw SAM 2 masks; refinement (I1) is judged by the inpainting metrics only.
 
+**Real-video test set.** The pasted benchmark makes segmentation easier than real footage (hard edges, usually one object of its kind). `configs/real_clips.txt` lists 10 unedited DAVIS val videos with a prompt each, scored on tracking (J&F against DAVIS's own masks). Build it with `python -m src.make_real --config configs/B0.yaml --davis-root DAVIS`, and run any version on it with an overlay, which only changes the clip list, prompts and results file (`results/real_results.csv`):
+
+```bash
+python -m src.run_pipeline --config configs/I2.yaml --overlay configs/real_set.yaml
+python -m src.summarize --csv results/real_results.csv
+```
+
+**Learned metrics.** `LPIPS mask` (perceptual distance on a crop around the object; PSNR rewards blur) and `Flicker RAFT` (flicker aligned with RAFT flow, independent of the Farneback flow our own method uses) are computed by `src/metrics_deep.py`. RAFT flow of each clean clip is cached in `data/<clip>/raft_flow.npy`.
+
 **Tuning uses a separate dev set.** `configs/dev_clips.txt` holds 5 pairs built from DAVIS *train* videos (the test set uses only val videos). `python -m src.sweep` tries several values of one config key on the dev set, with ground-truth masks, and writes to `results/tuning.csv`. Values are picked there and then run once on the test set.
 
 Iterations that don't change segmentation set `segmentation.reuse_from: B0`, so every version is compared on the same SAM 2 masks.

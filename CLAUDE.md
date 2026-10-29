@@ -49,6 +49,7 @@ Each stage is a separate script that reads from disk and writes to disk. Do not 
 | I2 | Text prompt via Grounding DINO |
 | I3 | Our own flow-guided inpainting (Farneback optical flow + temporal pixel propagation, `cv2.inpaint` fallback) |
 | I3b | I3 + hop cap (`max_hops: 5`, tuned on the dev set) |
+| I2b | I2 + candidate re-ranking (detector score × CLIP probability, wider candidate pool) |
 | I4 | ProPainter |
 | I5 | Re-detection every N frames for objects that leave and re-enter |
 | I6 | Speed: smaller SAM 2 model, lower resolution, chunking |
@@ -64,6 +65,8 @@ Rules:
 - Fixed test set: the clip names in `configs/eval_clips.txt` (10–15 DAVIS 2017 validation clips). Do not change this list without being asked, since that invalidates comparisons.
 - **Never tune on the test set.** Pick hyperparameters on `configs/dev_clips.txt` (DAVIS train videos) with `python -m src.sweep`, which writes to `results/tuning.csv`; then run the chosen value once on the test set.
 - J&F scores the raw SAM 2 masks (`masks/`), not `masks_refined/`.
+- Second test set: `configs/real_clips.txt` (unedited DAVIS val videos, tracking only). Run with `--overlay configs/real_set.yaml`; results go to `results/real_results.csv`. Report both sets; the pasted benchmark overstates tracking and grounding.
+- `LPIPS mask` and `Flicker RAFT` (`src/metrics_deep.py`) are the primary perceptual/temporal metrics; PSNR mask and Farneback flicker are kept for continuity.
 - Metrics, all written to `results/results.csv` as one row per (version, clip) by `src/evaluate.py`:
   - **J&F**: region IoU and boundary F-measure, implemented in `src/evaluate.py` following the DAVIS definitions.
   - **Grounding hit rate**: prompt box IoU > 0.5 with the ground-truth box on frame 0.
@@ -85,7 +88,7 @@ Rules:
 ```
 configs/        per-iteration YAML configs, eval_clips.txt
 src/
-  grounding.py      stage 1
+  grounding.py      stage 1 (+ CLIP re-ranking, I2b; keyframe detection, I5)
   segment.py        stage 2
   refine_masks.py   stage 3
   inpaint/

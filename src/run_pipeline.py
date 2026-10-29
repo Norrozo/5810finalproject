@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 
 from src import evaluate, extract_frames, grounding, inpaint, refine_masks, segment, visualize
-from src.utils import clip_paths, load_config, read_clip_list
+from src.utils import clip_paths, load_config, read_clip_list, uses_grounding
 
 
 def main(argv=None):
@@ -26,14 +26,15 @@ def main(argv=None):
     ap.add_argument("--name", help="Clip name for --video")
     ap.add_argument("--click", help="X,Y on the object in frame 0 (for --video)")
     ap.add_argument("--text", help='Text prompt, e.g. "remove the dog" (configs with a grounding section)')
+    ap.add_argument("--overlay", nargs="*", default=[], help="Extra YAML applied on top, e.g. configs/real_set.yaml")
     ap.add_argument("--overwrite", action="store_true")
     ap.add_argument("--no-viz", action="store_true", help="Skip side-by-side videos (faster)")
     args = ap.parse_args(argv)
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, args.overlay)
     click = [int(v) for v in args.click.split(",")] if args.click else None
 
-    if args.text and "grounding" not in cfg:
+    if args.text and not uses_grounding(cfg):
         ap.error("--text needs a config with a grounding section (I2 or later)")
     if args.video:
         if not args.name or not (click or args.text):
@@ -46,7 +47,7 @@ def main(argv=None):
         clips = args.clips or [e["name"] for e in read_clip_list(cfg["eval_clips"])]
 
     print(f"== {cfg['version']} on {len(clips)} clip(s) ==")
-    if "grounding" in cfg:
+    if uses_grounding(cfg):
         # Ground every clip first, then free the detector so it isn't in memory alongside SAM 2.
         for clip in clips:
             grounding.run(cfg, clip, text=args.text, overwrite=args.overwrite)
@@ -64,7 +65,8 @@ def main(argv=None):
         mean = lambda k: sum(r[k] for r in scored) / len(scored)
         print(f"== {cfg['version']} mean over {len(scored)} clips: J&F={mean('JF'):.3f}  "
               f"PSNR={mean('psnr'):.2f}  PSNR(mask)={mean('psnr_mask'):.2f}  "
-              f"SSIM={mean('ssim'):.3f}  flicker={mean('flicker'):.2f} ==")
+              f"SSIM={mean('ssim'):.3f}  flicker={mean('flicker'):.2f} ==" if all("psnr" in r for r in scored)
+              else f"== {cfg['version']} mean over {len(scored)} clips: J&F={mean('JF'):.3f} ==")
         hits = [r["grounding_hit"] for r in scored if "grounding_hit" in r]
         if hits:
             print(f"== grounding hit rate: {sum(hits)}/{len(hits)} ==")

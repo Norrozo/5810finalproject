@@ -1,0 +1,14 @@
+# REAL test set: unedited DAVIS 2017 val videos, scored on tracking only (J&F vs DAVIS's
+# own annotation of object 1). No clean background exists, so no fill metrics.
+# Chosen before any results, to cover easy and hard cases (crowds, look-alikes, fast motion).
+# name          davis_clip      object_id  prompt
+real_bike-packing   bike-packing    1   bicycle
+real_dance-twirl    dance-twirl     1   woman dancing
+real_drift-chicane  drift-chicane   1   car
+real_india          india           1   woman in white
+real_judo           judo            1   judo fighter
+real_loading        loading         1   man in black jacket
+real_mbike-trick    mbike-trick     1   motorcycle
+real_pigs           pigs            1   piglet
+real_shooting       shooting        1   man
+real_soapbox        soapbox         1   soapbox cart

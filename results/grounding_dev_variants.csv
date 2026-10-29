@@ -1,0 +1,43 @@
+variant,clip,prompt,iou,hit,n_candidates
+gA_dino_base,rdev_crossing,man in dark clothes,0.0,0,2
+gA_dino_base,rdev_dancing,woman in pink dress,0.937,1,1
+gA_dino_base,rdev_lindy-hop,woman in white shirt,0.0,0,1
+gA_dino_base,rdev_schoolgirls,girl in blue shirt,0.965,1,1
+gA_dino_base,rdev_walking,bearded man,0.969,1,1
+gA_dino_base,rdev_boxing,boxer in blue helmet,0.936,1,1
+gA_dino_base,rdev_dog-gooses,dog,0.965,1,1
+gA_dino_base,rdev_hockey,hockey player,0.977,1,1
+gA_dino_base,rdev_tuk-tuk,girl on the left,0.979,1,1
+gA_dino_base,rdev_upside-down,man with sunglasses,0.94,1,1
+gA_dino_base,rdev_kid-football,boy in orange jersey,0.975,1,1
+gA_dino_base,rdev_skate-park,skateboarder,0.885,1,1
+gA_dino_base,rdev_cat-girl,girl,0.988,1,1
+gA_dino_base,rdev_bmx-bumps,bmx rider,0.298,0,1
+gB_clip_only,rdev_crossing,man in dark clothes,0.0,0,1
+gB_clip_only,rdev_dancing,woman in pink dress,0.919,1,2
+gB_clip_only,rdev_lindy-hop,woman in white shirt,0.0,0,3
+gB_clip_only,rdev_schoolgirls,girl in blue shirt,0.0,0,2
+gB_clip_only,rdev_walking,bearded man,0.983,1,1
+gB_clip_only,rdev_boxing,boxer in blue helmet,0.103,0,2
+gB_clip_only,rdev_dog-gooses,dog,0.972,1,1
+gB_clip_only,rdev_hockey,hockey player,0.316,0,2
+gB_clip_only,rdev_tuk-tuk,girl on the left,0.0,0,2
+gB_clip_only,rdev_upside-down,man with sunglasses,0.096,0,2
+gB_clip_only,rdev_kid-football,boy in orange jersey,0.964,1,1
+gB_clip_only,rdev_skate-park,skateboarder,0.86,1,1
+gB_clip_only,rdev_cat-girl,girl,0.991,1,1
+gB_clip_only,rdev_bmx-bumps,bmx rider,0.565,1,2
+gC_wide_pool,rdev_crossing,man in dark clothes,0.0,0,3
+gC_wide_pool,rdev_dancing,woman in pink dress,0.919,1,5
+gC_wide_pool,rdev_lindy-hop,woman in white shirt,0.0,0,3
+gC_wide_pool,rdev_schoolgirls,girl in blue shirt,0.948,1,6
+gC_wide_pool,rdev_walking,bearded man,0.983,1,1
+gC_wide_pool,rdev_boxing,boxer in blue helmet,0.879,1,2
+gC_wide_pool,rdev_dog-gooses,dog,0.972,1,1
+gC_wide_pool,rdev_hockey,hockey player,0.995,1,3
+gC_wide_pool,rdev_tuk-tuk,girl on the left,0.975,1,2
+gC_wide_pool,rdev_upside-down,man with sunglasses,0.925,1,5
+gC_wide_pool,rdev_kid-football,boy in orange jersey,0.964,1,2
+gC_wide_pool,rdev_skate-park,skateboarder,0.86,1,1
+gC_wide_pool,rdev_cat-girl,girl,0.991,1,1
+gC_wide_pool,rdev_bmx-bumps,bmx rider,0.295,0,2

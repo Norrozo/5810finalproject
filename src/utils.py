@@ -13,11 +13,31 @@ import yaml
 
 # ---------------------------------------------------------------- config / paths
 
-def load_config(path: str | Path) -> dict:
+def _merge(base: dict, extra: dict) -> dict:
+    for k, v in extra.items():
+        base[k] = _merge(base.get(k, {}), v) if isinstance(v, dict) and isinstance(base.get(k), dict) else v
+    return base
+
+
+def load_config(path: str | Path, overlays: list[str | Path] | None = None) -> dict:
+    """Load a version config, then apply overlays (e.g. configs/real_set.yaml) on top.
+
+    Overlays only change WHERE a version runs (clip list, results file, prompts),
+    never its method settings, so results stay comparable to the base config.
+    """
     with open(path) as f:
         cfg = yaml.safe_load(f)
+    for o in overlays or []:
+        with open(o) as f:
+            _merge(cfg, yaml.safe_load(f))
     cfg["_config_path"] = str(path)
     return cfg
+
+
+def uses_grounding(cfg: dict) -> bool:
+    """Text prompts are on only when the config names a grounding method (I2 and later).
+    An overlay may add grounding.prompts_file to any config without switching it on."""
+    return bool(cfg.get("grounding", {}).get("method"))
 
 
 def clip_paths(cfg: dict, clip: str) -> dict[str, Path]:

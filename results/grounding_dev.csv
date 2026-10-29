@@ -1,0 +1,29 @@
+variant,clip,prompt,iou,hit,n_candidates
+I2,rdev_crossing,man in dark clothes,0.0,0,1
+I2,rdev_dancing,woman in pink dress,0.919,1,2
+I2,rdev_lindy-hop,woman in white shirt,0.0,0,3
+I2,rdev_schoolgirls,girl in blue shirt,0.948,1,2
+I2,rdev_walking,bearded man,0.983,1,1
+I2,rdev_boxing,boxer in blue helmet,0.879,1,2
+I2,rdev_dog-gooses,dog,0.972,1,1
+I2,rdev_hockey,hockey player,0.995,1,2
+I2,rdev_tuk-tuk,girl on the left,0.975,1,2
+I2,rdev_upside-down,man with sunglasses,0.925,1,2
+I2,rdev_kid-football,boy in orange jersey,0.964,1,1
+I2,rdev_skate-park,skateboarder,0.86,1,1
+I2,rdev_cat-girl,girl,0.991,1,1
+I2,rdev_bmx-bumps,bmx rider,0.295,0,2
+I2b,rdev_crossing,man in dark clothes,0.0,0,3
+I2b,rdev_dancing,woman in pink dress,0.086,0,5
+I2b,rdev_lindy-hop,woman in white shirt,0.0,0,3
+I2b,rdev_schoolgirls,girl in blue shirt,0.251,0,6
+I2b,rdev_walking,bearded man,0.983,1,1
+I2b,rdev_boxing,boxer in blue helmet,0.103,0,2
+I2b,rdev_dog-gooses,dog,0.972,1,1
+I2b,rdev_hockey,hockey player,0.316,0,3
+I2b,rdev_tuk-tuk,girl on the left,0.0,0,2
+I2b,rdev_upside-down,man with sunglasses,0.096,0,5
+I2b,rdev_kid-football,boy in orange jersey,0.569,1,2
+I2b,rdev_skate-park,skateboarder,0.86,1,1
+I2b,rdev_cat-girl,girl,0.991,1,1
+I2b,rdev_bmx-bumps,bmx rider,0.565,1,2

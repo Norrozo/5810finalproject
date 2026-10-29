@@ -1,0 +1,42 @@
+# I5: I2 + periodic re-detection. Grounding DINO also runs on every 10th frame; where the
+# SAM 2 track is lost or matches no detection, that detection is added as a correction
+# prompt and the clip is re-tracked. Settings fixed in advance (not tuned). Else identical to I2.
+version: I5
+
+data_root: data
+runs_root: runs
+results_csv: results/results.csv
+eval_clips: configs/eval_clips.txt
+
+# Clip limits (keep small for Colab's free GPU)
+max_frames: 60
+
+grounding:
+  method: grounding_dino
+  hf_model: IDEA-Research/grounding-dino-tiny
+  box_threshold: 0.35       # Hugging Face example defaults, not tuned
+  text_threshold: 0.25
+  prompts_file: configs/eval_prompts.txt
+  redetect:
+    every: 10               # detect on frames 10, 20, 30, ...
+    min_score: 0.35         # only trust confident detections (same as box_threshold)
+    min_area_frac: 0.001    # tracked mask below 0.1% of the frame = object lost
+    match_iou: 0.3          # tracked box overlapping no detection this much = drifted
+max_height: 480
+
+segmentation:
+  method: sam2              # sam2 | oracle (oracle copies ground-truth masks; for debugging/ablations)
+  hf_model: facebook/sam2.1-hiera-large
+  offload_video_to_cpu: true
+
+refine:
+  threshold: 127            # B0 only binarizes. No dilation or hole filling yet.
+
+inpaint:
+  method: opencv            # opencv | flow_guided (I3) | propainter (I4)
+  opencv_method: telea      # telea | ns
+  radius: 5
+
+evaluation:
+  boundary_tolerance: 0.008 # fraction of image diagonal, as in DAVIS
+  region_dilation: 5        # px added around the GT mask when scoring the filled region

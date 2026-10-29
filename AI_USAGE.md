@@ -63,3 +63,15 @@ The course requires a summary of how we used generative AI tools and what, if an
     - What we changed ourselves: [e.g. rewrote goals/audience in our own words; filled in group info and duties]
 
 ---
+
+## 2026-10-29: Learned metrics, real-video sets, I2b/I2c, I5 code, demo disambiguation
+
+- **Tool:** Claude Code (Anthropic), Opus 5.5
+- **What it did:** Wrote `src/metrics_deep.py` (LPIPS, RAFT-aligned flicker) and re-scored all versions; built the real test and dev sets (`src/make_real.py`, `configs/real_clips.txt`, `configs/real_dev_clips.txt`, overlay `configs/real_set.yaml`); wrote `src/eval_grounding.py`; implemented I2b (CLIP re-ranking, rejected), I2c (ask when ambiguous) and I5 (re-detection, not yet run) in `src/grounding.py` / `src/segment.py`; added the "which one?" step to `src/demo.py`; ran all experiments and wrote the log entries; filled in `docs/proposal/proposal.tex` from our results.
+- **Copied directly:** the code, configs and log text above. All numbers come from running the scripts.
+- **Our review / changes:** _TO FILL IN by the team (only what you actually did):_
+    - Reviewed by: [name(s)], files: [e.g. src/grounding.py, src/metrics_deep.py]
+    - What we checked by running it / reading it: [e.g. tried the demo's which-one step]
+    - What we changed ourselves: [none / describe]
+
+---

@@ -141,3 +141,88 @@ Template:
   - Flow-guided fill: a blurry bear-shaped smudge. The camera follows the bear, so the background behind it is hidden in every frame; there is nothing to propagate and it falls back to Telea. A faint outline of the fur also survives (soft real edges, unlike the pasted benchmark objects).
   - ProPainter fill: better (rock and dirt texture continue into the hole) but still a soft smudge, because it must hallucinate a large region (~12% of the frame) that no frame shows.
 - Takeaway: two things the synthetic benchmark hides: (1) objects tracked by the camera leave a permanently hidden region, the hardest case for every method; (2) real soft edges leave halos, so I1's dilation should be re-tested on real clips. Good material for the I7 failure-case study.
+
+## 2026-10-29: Evaluation additions: LPIPS and RAFT-aligned flicker
+
+- Change: two metrics added to `src/evaluate.py` via `src/metrics_deep.py`, promised in the proposal. **LPIPS mask** (AlexNet LPIPS on a crop around the object region, padded 16 px) because PSNR rewards blur. **Flicker RAFT**: the same flicker measure aligned with RAFT-large flow instead of Farneback, because our own method (I3b) uses Farneback and a Farneback-aligned metric could favor it. RAFT flow on the clean video is cached per clip (`data/<clip>/raft_flow.npy`). No pipeline was re-run; all versions were re-scored. Every pre-existing value in `results/results.csv` was checked unchanged (60/60 rows).
+- Command: `python -m src.evaluate --config configs/<v>.yaml` for B0, I1, I2, I3, I3b, I4
+- Results:
+
+| Version | PSNR mask ↑ | LPIPS mask ↓ | Flicker (Farneback) ↓ | Flicker RAFT ↓ |
+|---|---|---|---|---|
+| B0 | 16.388 | 0.303 | 18.753 | 18.993 |
+| I1 | 15.507 | 0.313 | 18.918 | 19.246 |
+| I2 | 15.940 | 0.313 | 19.175 | 19.575 |
+| I3 | 15.977 | 0.298 | 16.301 | 17.536 |
+| I3b | 16.500 | 0.294 | 16.313 | 17.313 |
+| I4 | 21.141 | 0.142 | 9.215 | 8.464 |
+
+- Observations: (1) LPIPS confirms the "PSNR rewards blur" concern: uncapped I3 scores *lower* PSNR than B0 but *better* LPIPS (0.298 vs 0.303), i.e. it looks closer to the truth despite the PSNR drop. (2) The Farneback flicker metric did slightly favor our Farneback-based method: I3b's flicker reduction vs B0 is −13% with Farneback alignment but −9% with RAFT. The gain is real but smaller. (3) ProPainter halves LPIPS (0.142) and is the only method below B0's flicker under both aligners.
+- Takeaway: report LPIPS and RAFT flicker as the primary perceptual/temporal metrics from now on; keep PSNR mask and Farneback flicker for continuity with B0–I4.
+
+## 2026-10-29: Real-video test set (tracking only): B0 and I2
+
+- Change: new test set `configs/real_clips.txt` (built by `src/make_real.py`): 10 unedited DAVIS 2017 val videos, scored by J&F against DAVIS's own mask of object 1, with a text prompt per clip. Chosen and prompted before any results, mixing easy cases with crowds, look-alikes and fast motion. No clean background exists, so no fill metrics. Run with the overlay `configs/real_set.yaml`, which only changes the clip list, prompts and results file (`results/real_results.csv`), never method settings.
+- Command: `python -m src.run_pipeline --config configs/{B0,I2}.yaml --overlay configs/real_set.yaml`
+- Results:
+
+| Clip | Prompt | B0 J&F (click) | I2 J&F (text) | I2 box IoU |
+|---|---|---|---|---|
+| bike-packing | bicycle | 0.826 | 0.795 | 0.99 |
+| dance-twirl | woman dancing | 0.938 | 0.941 | 0.96 |
+| drift-chicane | car | 0.955 | 0.955 | 0.93 |
+| india | woman in white | 0.918 | **0.000** | 0.00 |
+| judo | judo fighter | 0.933 | 0.933 | 0.96 |
+| loading | man in black jacket | 0.991 | **0.036** | 0.00 |
+| mbike-trick | motorcycle | **0.235** | 0.304 | 0.48 |
+| pigs | piglet | 0.982 | **0.016** | 0.00 |
+| shooting | man | 0.893 | **0.090** | 0.37 |
+| soapbox | soapbox cart | **0.312** | **0.746** | 0.88 |
+| **Mean** | | **0.798** | **0.482** (hit 5/10) | |
+
+- Observations: (1) The synthetic benchmark overstates tracking: B0's J&F drops from 0.943 (pasted) to 0.798 (real). (2) B0's two collapses (mbike-trick, soapbox) are *part-vs-whole* errors: the click lands on the rider and SAM 2 outlines only that part (predicted mask ≈ 20–30% of the true one, almost entirely inside it). A box conveys the object's extent, so I2 fixes soapbox (0.31 → 0.75). (3) Text grounding drops from 9/10 hits (pasted) to 5/10 (real): with several people or pigs in view, Grounding DINO-tiny ranks by the noun and ignores attributes ("in white", "in black jacket") or boxes a whole group ("piglet"). The pasted benchmark hid this because the pasted object was usually the only one of its kind. On 2 of 5 misses the correct box was the detector's 2nd candidate; on the other 3 it fell below the 0.35 threshold.
+- Takeaway: grounding ambiguity, not tracking, is the main weakness on real video. Periodic re-detection (I5) cannot fix a wrong initial pick, so the next iteration is I2b: candidate re-ranking.
+
+## 2026-10-29: I2b design (dev set only)
+
+- Idea: widen the candidate pool (detector threshold 0.35 → 0.2, up to 10 boxes) and re-rank with CLIP (ViT-B/16), which matches whole captions and is better at attributes.
+- First version (pure CLIP ranking) failed on the dev clip lucia_on_hockey: prompt "person", two people with CLIP similarity 25.80 vs 25.72, so CLIP overrode the detector's correct pick (IoU 0.76 → 0.00).
+- Final version (fixed before any test run): score = detector confidence × CLIP softmax probability over the candidates. A near-tie in CLIP leaves the detector's order; a confident CLIP match overrides it. Dev set: 5/5 correct picks.
+
+## 2026-10-29: Real DEV set for grounding; I2b rejected; I2c design
+
+- Problem: the synthetic dev set has one ambiguous clip, too few to design grounding fixes on. New **real dev set** `configs/real_dev_clips.txt`: 14 DAVIS *train* videos (no overlap with either test set) with several objects of the same kind, prompted the way a user would describe object 1. `src/eval_grounding.py` scores frame-0 grounding alone (hit = box IoU > 0.5), seconds per variant, no SAM 2.
+- Results (`results/grounding_dev*.csv`), one change from I2 each:
+
+| Variant | Real dev hits |
+|---|---|
+| I2 (Grounding DINO tiny, threshold 0.35) | 11/14 |
+| I2b (wider pool + detector × CLIP re-rank) | **6/14** |
+| A: Grounding DINO *base* | 11/14 |
+| B: CLIP re-rank, normal pool | 7/14 |
+| C: wider pool (0.2), no re-rank | 11/14 |
+
+- I2b on the real test set: J&F 0.482 → 0.483, hits 5/10 → 5/10 (fixed pigs 0.016 → 0.982, broke drift-chicane 0.955 → 0.000 by preferring a different car). Together with the dev result: **CLIP ViT-B/16 re-ranking is unreliable for attribute prompts; rejected** (logged, configs kept for reproducibility).
+- Key observation: on the real dev set the correct object is in the detector's **top 3 on 14/14 clips** (top-1: 11/14), and every top-1 miss had a close runner-up (0.47/0.33, 0.44/0.42, 0.49/0.36). The detector knows when it is unsure.
+- I2c design: keep the top 3 (pool threshold 0.2); if the runner-up scores ≥ ratio × best, the prompt is ambiguous and the demo asks the user to click one of the numbered boxes. Ratio sweep on real dev: 0.5 → asks 9/14, correct 14/14; 0.6 → 8/14, 14/14; **0.7 → 7/14, 14/14**; 0.8 → 5/14, 12/14; 0.9 → 4/14, 12/14. Chose 0.7 (fewest questions with all correct). On the benchmarks no person can click, so a *simulated user* picks the choice on the true object; results report how many clips needed a question.
+- Demo note: grounding scores shift with video compression (the same lindy-hop frame from an MP4 vs. the PNG: mean pixel difference 2.9, top score 0.44 → 0.62), so in the demo the same prompt can be ambiguous on one encoding and not another.
+
+## 2026-10-29: I2c on the real test set
+
+- Command: `python -m src.run_pipeline --config configs/I2c.yaml --overlay configs/real_set.yaml`
+- Results (`results/real_results.csv`):
+
+| Version | Grounding hits | J&F | Clips that asked the user |
+|---|---|---|---|
+| B0 (click) | – | 0.798 | – |
+| I2 (text) | 5/10 | 0.482 | – |
+| I2b (CLIP re-rank) | 5/10 | 0.483 | – |
+| **I2c (ask when ambiguous, simulated user)** | **7/10** | **0.674** | 3/10 |
+
+- Asked on drift-chicane, loading, pigs; the simulated pick fixed loading (0.036 → 0.991) and pigs (0.016 → 0.982) and kept drift-chicane correct. Not asked on india and shooting: the detector was *confidently* wrong (no close runner-up), so asking cannot help there. mbike-trick stays low because "motorcycle" does not cover the rider that DAVIS annotates as object 1.
+- Takeaway: asking only when the detector is unsure recovers 2 of 5 grounding misses for 3 questions in 10 clips. Clicking (B0) is still the most reliable prompt on real video (0.798 vs 0.674); text is the convenient default with a click as fallback. Remaining misses need either better attribute grounding or a click.
+
+## 2026-10-29: I2c on the synthetic test set; I5 status
+
+- I2c (synthetic): hits 9/10, J&F 0.890, identical to I2. It asked on 3 clips (libby, breakdance, car-shadow), where the top pick was already correct, so the simulated user changed nothing. The parkour miss is not flagged (the detector is confidently wrong). I2b on the synthetic set: hits **6/10**, J&F 0.681, confirming its rejection.
+- I5 (periodic re-detection) is implemented (`configs/I5.yaml`, `redetect_corrections` in `src/segment.py`, unit-tested in the smoke test) but **not yet run**. It targets objects that are lost mid-clip; the real-set failures found today are wrong initial picks, which re-detection by design does not change. Next: run I5 on both sets, building on I2c.

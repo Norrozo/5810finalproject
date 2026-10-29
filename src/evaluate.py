@@ -11,6 +11,8 @@ Metrics (synthetic benchmark clips, which have ground truth):
   flicker    temporal inconsistency inside the region: mean |out_t - warp(out_{t-1})|,
              warping with optical flow computed on the clean GT video          (lower = better)
   flicker_ref the same measure on the GT video itself: the floor you can approach
+  lpips_mask, flicker_raft, flicker_raft_ref  learned metrics, see src/metrics_deep.py
+                 (skipped when evaluation.deep_metrics is false)
   grounding_iou  IoU of the text-prompt box with the GT mask's bounding box on frame 0 (I2+)
   grounding_hit  1 if grounding_iou > 0.5 (the standard detection threshold), else 0
 Runtime (all clips, including custom videos without GT):
@@ -44,7 +46,8 @@ from skimage.metrics import structural_similarity
 from src.utils import clip_paths, list_frames, load_config, read_clip_list, read_image, read_mask
 
 COLUMNS = ["version", "clip", "n_frames", "J", "F", "JF", "psnr", "psnr_mask", "ssim",
-           "flicker", "flicker_ref", "grounding_iou", "grounding_hit",
+           "flicker", "flicker_ref", "lpips_mask", "flicker_raft", "flicker_raft_ref",
+           "grounding_iou", "grounding_hit",
            "spf_ground", "spf_segment", "spf_refine", "spf_inpaint", "spf_total", "timestamp"]
 PSNR_CAP = 100.0  # identical images give infinite PSNR; cap so averages stay finite
 
@@ -155,11 +158,14 @@ def evaluate_clip(cfg: dict, clip: str) -> dict:
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * ev.get("region_dilation", 5) + 1,) * 2)
     Js, Fs, psnrs, psnr_masks, ssims = [], [], [], [], []
     outputs, gts, regions = [], [], []
+    has_clean = paths["gt_clean"].exists()  # real (non-pasted) clips have masks but no clean background
     for f in frames:
         gt_mask = read_mask(paths["gt_masks"] / f.name)
         pred_mask = read_mask(paths["masks"] / f.name)  # raw tracker output, before refinement
         Js.append(jaccard(pred_mask, gt_mask))
         Fs.append(boundary_f(pred_mask, gt_mask, ev.get("boundary_tolerance", 0.008)))
+        if not has_clean:
+            continue
 
         out = read_image(paths["inpainted"] / f.name)
         gt = read_image(paths["gt_clean"] / f.name)
@@ -169,10 +175,16 @@ def evaluate_clip(cfg: dict, clip: str) -> dict:
         ssims.append(structural_similarity(gt, out, channel_axis=2, data_range=255))
         outputs.append(out); gts.append(gt); regions.append(region)
 
-    flicker, flicker_ref = flicker_scores(outputs, gts, regions)
-    row.update(J=np.mean(Js), F=np.mean(Fs), JF=(np.mean(Js) + np.mean(Fs)) / 2,
-               psnr=np.mean(psnrs), psnr_mask=np.mean(psnr_masks), ssim=np.mean(ssims),
-               flicker=flicker, flicker_ref=flicker_ref)
+    row.update(J=np.mean(Js), F=np.mean(Fs), JF=(np.mean(Js) + np.mean(Fs)) / 2)
+    if has_clean:
+        flicker, flicker_ref = flicker_scores(outputs, gts, regions)
+        row.update(psnr=np.mean(psnrs), psnr_mask=np.mean(psnr_masks), ssim=np.mean(ssims),
+                   flicker=flicker, flicker_ref=flicker_ref)
+        if ev.get("deep_metrics", True):
+            from src import metrics_deep
+            row["lpips_mask"] = metrics_deep.lpips_mask(outputs, gts, regions)
+            row["flicker_raft"], row["flicker_raft_ref"] = metrics_deep.flicker_raft(
+                outputs, gts, regions, cache=Path(cfg["data_root"]) / clip / "raft_flow.npy")
     return {k: (round(float(v), 4) if isinstance(v, (float, np.floating)) else v) for k, v in row.items()}
 
 
@@ -200,13 +212,20 @@ def run(cfg: dict, clips: list[str]) -> list[dict]:
     for clip in clips:
         row = evaluate_clip(cfg, clip)
         rows.append(row)
-        if "JF" in row:
+        if "psnr" in row:
+            deep = (f"  LPIPS(mask)={row['lpips_mask']:.3f}  flicker_raft={row['flicker_raft']:.2f}"
+                    if "lpips_mask" in row else "")
             print(f"  [eval]    {clip}: J&F={row['JF']:.3f}  PSNR={row['psnr']:.2f}  "
                   f"PSNR(mask)={row['psnr_mask']:.2f}  SSIM={row['ssim']:.3f}  "
-                  f"flicker={row['flicker']:.2f} (ref {row['flicker_ref']:.2f})")
+                  f"flicker={row['flicker']:.2f} (ref {row['flicker_ref']:.2f}){deep}")
+        elif "JF" in row:
+            print(f"  [eval]    {clip}: J&F={row['JF']:.3f} (real clip: tracking only)")
         else:
             print(f"  [eval]    {clip}: no ground truth, runtime only")
     upsert_rows(Path(cfg["results_csv"]), rows)
+    if cfg.get("evaluation", {}).get("deep_metrics", True):
+        from src import metrics_deep
+        metrics_deep.unload()
     return rows
 
 
@@ -214,8 +233,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", required=True)
     ap.add_argument("--clips", nargs="*", help="Default: all clips in eval_clips")
+    ap.add_argument("--overlay", nargs="*", default=[])
     args = ap.parse_args(argv)
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, args.overlay)
     clips = args.clips or [e["name"] for e in read_clip_list(cfg["eval_clips"])]
     run(cfg, clips)
 
