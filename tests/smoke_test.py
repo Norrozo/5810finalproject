@@ -79,6 +79,10 @@ def test_redetect():
     twins = {"1": [{"box": [60, 60, 90, 90], "score": 0.9}, {"box": [22, 20, 42, 40], "score": 0.6}]}
     out = redetect_corrections([m, np.zeros_like(m)], twins, {}, anchor_box=[20, 20, 40, 40])
     assert out[0]["box"] == [22, 20, 42, 40], out
+    # The right object detected with a low score this frame: I5 "corrects" the track, I5b keeps it
+    low = {"1": [{"box": [60, 60, 90, 90], "score": 0.9}, {"box": [20, 20, 40, 40], "score": 0.3}]}
+    assert len(redetect_corrections([m, m], low, {})) == 1
+    assert redetect_corrections([m, m], low, {"match_all_candidates": True}) == []
 
 
 def test_ambiguity():

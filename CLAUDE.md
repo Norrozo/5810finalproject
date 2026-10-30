@@ -52,6 +52,7 @@ Each stage is a separate script that reads from disk and writes to disk. Do not 
 | I2b | I2 + candidate re-ranking (detector score × CLIP probability, wider candidate pool) |
 | I4 | ProPainter |
 | I5 | Re-detection every N frames for objects that leave and re-enter |
+| I5b | I5 + confirm the track against all candidates, not only confident ones |
 | I6 | Speed: smaller SAM 2 model, lower resolution, chunking |
 | I7 | Multi-object prompts + failure-case study |
 
@@ -66,6 +67,8 @@ Rules:
 - **Never tune on the test set.** Pick hyperparameters on `configs/dev_clips.txt` (DAVIS train videos) with `python -m src.sweep`, which writes to `results/tuning.csv`; then run the chosen value once on the test set.
 - J&F scores the raw SAM 2 masks (`masks/`), not `masks_refined/`.
 - Second test set: `configs/real_clips.txt` (unedited DAVIS val videos, tracking only). Run with `--overlay configs/real_set.yaml`; results go to `results/real_results.csv`. Report both sets; the pasted benchmark overstates tracking and grounding.
+- Real dev set: `configs/real_dev_clips.txt` (DAVIS train, look-alike objects, full masks). `--overlay configs/real_dev_set.yaml` → `results/real_dev_results.csv`. Check grounding/tracking designs here before the real test set.
+- Stage isolation: `--overlay configs/fill_only.yaml` runs a fill method on the true masks (`results/fill_results.csv`); `python -m src.stage_report` writes `results/stage_report.md` (grounding / tracking / fill / end to end, each scored separately). `python -m src.metric_check` scores fake outputs of known quality to validate the metrics.
 - `LPIPS mask` and `Flicker RAFT` (`src/metrics_deep.py`) are the primary perceptual/temporal metrics; PSNR mask and Farneback flicker are kept for continuity.
 - Metrics, all written to `results/results.csv` as one row per (version, clip) by `src/evaluate.py`:
   - **J&F**: region IoU and boundary F-measure, implemented in `src/evaluate.py` following the DAVIS definitions.
@@ -96,6 +99,9 @@ src/
     flow_guided.py  our own method (I3)
     propainter.py   wrapper around third_party/ProPainter (I4)
   evaluate.py       all metrics
+  metrics_deep.py   LPIPS, RAFT flicker
+  stage_report.py   per-stage evaluation report
+  metric_check.py   metric sanity checks on known cases
   visualize.py      side-by-side videos and stills
   run_pipeline.py   runs all stages for one config
   summarize.py      per-version Markdown table

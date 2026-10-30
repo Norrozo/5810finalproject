@@ -1,0 +1,6 @@
+,psnr_mask,ssim,lpips_mask,flicker,flicker_raft
+psnr_mask,1.0,0.4,0.38,0.63,0.66
+ssim,0.4,1.0,0.64,0.23,0.27
+lpips_mask,0.38,0.64,1.0,0.4,0.46
+flicker,0.63,0.23,0.4,1.0,0.98
+flicker_raft,0.66,0.27,0.46,0.98,1.0

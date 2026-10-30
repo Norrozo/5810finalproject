@@ -75,3 +75,15 @@ The course requires a summary of how we used generative AI tools and what, if an
     - What we changed ourselves: [none / describe]
 
 ---
+
+## 2026-10-30: I5 run, I5b, stage-by-stage evaluation, metric checks
+
+- **Tool:** Claude Code (Anthropic), Opus 5.5
+- **What it did:** Rebased I5 on I2c and changed its correction to the detection nearest the object (`src/segment.py`), ran I5 on both test sets, diagnosed the `loading` regression and implemented I5b (`configs/I5b.yaml`, `match_all_candidates`); added the real dev overlay (`configs/real_dev_set.yaml`); separated the evaluation by stage (`configs/fill_only.yaml`, `src/stage_report.py`, `fill_scores` factored out of `src/evaluate.py`); wrote `src/metric_check.py` (known-quality fake outputs, metric agreement); updated README, CLAUDE.md, experiment log and slides.
+- **Copied directly:** the code, configs and log text above. All numbers come from running the scripts.
+- **Our review / changes:** _TO FILL IN by the team (only what you actually did):_
+    - Reviewed by: [name(s)], files: [e.g. src/metric_check.py, src/stage_report.py]
+    - What we checked by running it / reading it: [e.g. re-ran metric_check; read the loading failure analysis]
+    - What we changed ourselves: [none / describe]
+
+---

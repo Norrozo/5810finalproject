@@ -108,6 +108,18 @@ python -m src.summarize --csv results/real_results.csv
 
 **Learned metrics.** `LPIPS mask` (perceptual distance on a crop around the object; PSNR rewards blur) and `Flicker RAFT` (flicker aligned with RAFT flow, independent of the Farneback flow our own method uses) are computed by `src/metrics_deep.py`. RAFT flow of each clean clip is cached in `data/<clip>/raft_flow.npy`.
 
+**Each stage is also scored on its own.** End-to-end numbers mix stages: one wrong grounding box makes every metric bad, even if tracking and filling worked. So:
+
+```bash
+python -m src.run_pipeline --config configs/I4.yaml --overlay configs/fill_only.yaml  # fill on TRUE masks -> results/fill_results.csv
+python -m src.metric_check     # do the metrics behave? fake outputs of known quality -> results/metric_check.csv
+python -m src.stage_report     # grounding / tracking / fill / end to end -> results/stage_report.md
+```
+
+`metric_check` scores outputs whose quality we know (the clean video, the object left in, a gray box, a blurred fill, a fill shifted by 4 px, a flickering fill) with the same code as `evaluate.py`. It shows, for example, that PSNR prefers the blurred fill to the shifted one while LPIPS does the opposite, and that flicker rewards a static gray box, so flicker is only read next to LPIPS.
+
+**Real dev set.** `configs/real_dev_clips.txt`: 14 DAVIS *train* videos with look-alike objects and full masks (`--overlay configs/real_dev_set.yaml`). Grounding and tracking designs are checked here before the real test set.
+
 **Tuning uses a separate dev set.** `configs/dev_clips.txt` holds 5 pairs built from DAVIS *train* videos (the test set uses only val videos). `python -m src.sweep` tries several values of one config key on the dev set, with ground-truth masks, and writes to `results/tuning.csv`. Values are picked there and then run once on the test set.
 
 Iterations that don't change segmentation set `segmentation.reuse_from: B0`, so every version is compared on the same SAM 2 masks.
@@ -144,9 +156,12 @@ src/
   extract_frames.py   video file → frames
   segment.py          SAM 2 tracking from a click (or oracle GT masks)
   refine_masks.py     mask cleanup (identity in B0)
-  inpaint/            opencv.py (B0), flow_guided.py (I3); propainter.py comes later
+  inpaint/            opencv.py (B0), flow_guided.py (I3), propainter.py (I4)
   sweep.py            tune one config value on the dev set
   evaluate.py         metrics → results/results.csv
+  metrics_deep.py     LPIPS mask, RAFT flicker
+  metric_check.py     metric sanity checks on known cases
+  stage_report.py     per-stage evaluation → results/stage_report.md
   visualize.py        side_by_side.mp4 + stills.png per clip
   run_pipeline.py     runs all stages
   summarize.py        per-version Markdown table for reports

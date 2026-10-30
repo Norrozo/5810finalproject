@@ -22,8 +22,9 @@ def _merge(base: dict, extra: dict) -> dict:
 def load_config(path: str | Path, overlays: list[str | Path] | None = None) -> dict:
     """Load a version config, then apply overlays (e.g. configs/real_set.yaml) on top.
 
-    Overlays only change WHERE a version runs (clip list, results file, prompts),
-    never its method settings, so results stay comparable to the base config.
+    Overlays change WHERE a version runs (clip list, results file, prompts), or swap in
+    ground-truth masks to isolate one stage (configs/fill_only.yaml). They never change
+    the method being measured, and always write to their own results CSV.
     """
     with open(path) as f:
         cfg = yaml.safe_load(f)

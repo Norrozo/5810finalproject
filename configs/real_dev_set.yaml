@@ -1,0 +1,7 @@
+# Overlay: run any version on the REAL DEV clips (DAVIS 2017 train, several look-alike
+# objects, full DAVIS masks). Used to choose and check designs before the real test set.
+#   python -m src.run_pipeline --config configs/I5b.yaml --overlay configs/real_dev_set.yaml
+eval_clips: configs/real_dev_clips.txt
+results_csv: results/real_dev_results.csv
+grounding:
+  prompts_file: configs/real_dev_clips.txt

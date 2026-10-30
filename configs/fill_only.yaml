@@ -1,0 +1,10 @@
+# Overlay: evaluate the FILL stage on its own. Segmentation is replaced by the true
+# (ground-truth) masks, so every fill method gets the same, perfect masks and the fill
+# metrics measure only filling, never tracking or grounding mistakes.
+#   python -m src.run_pipeline --config configs/I4.yaml --overlay configs/fill_only.yaml
+# Synthetic clips only (needs the clean video). Separate runs folder and results CSV.
+runs_root: runs/fill_only
+results_csv: results/fill_results.csv
+segmentation:
+  method: oracle
+  reuse_from: null

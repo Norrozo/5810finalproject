@@ -226,3 +226,52 @@ Template:
 
 - I2c (synthetic): hits 9/10, J&F 0.890, identical to I2. It asked on 3 clips (libby, breakdance, car-shadow), where the top pick was already correct, so the simulated user changed nothing. The parkour miss is not flagged (the detector is confidently wrong). I2b on the synthetic set: hits **6/10**, J&F 0.681, confirming its rejection.
 - I5 (periodic re-detection) is implemented (`configs/I5.yaml`, `redetect_corrections` in `src/segment.py`, unit-tested in the smoke test) but **not yet run**. It targets objects that are lost mid-clip; the real-set failures found today are wrong initial picks, which re-detection by design does not change. Next: run I5 on both sets, building on I2c.
+
+## 2026-10-30: I5 (periodic re-detection), built on I2c
+
+- Change: Grounding DINO also runs on frames 10, 20, …; if the SAM 2 track is empty ("lost") or overlaps no confident detection (score ≥ 0.35, box IoU < 0.3: "drifted"), the detection nearest the object's last confirmed position is added as a SAM 2 prompt and the clip is re-tracked. Before running, the correction was changed from "top-scoring detection" to "nearest detection", so with look-alikes it cannot jump to a different object than the one the user chose (unit test added). Settings fixed in advance, not tuned.
+- Commands: `python -m src.run_pipeline --config configs/I5.yaml` and the same with `--overlay configs/real_set.yaml`.
+- Synthetic: no corrections on any clip; identical to I2c (hits 9/10, J&F 0.890). Pasted objects never leave the frame, so there is nothing to re-detect.
+- Real test: **J&F 0.674 → 0.600 (worse)**. Corrections on 2 clips: india (0.000 → 0.023, was already a grounding miss) and loading (**0.991 → 0.235**).
+- Why loading broke: the track was correct, but on frame 10 the right man was detected with score 0.32, below the 0.35 cutoff, so only another man counted as a detection. The correct track matched no *confident* detection, was labelled "drifted" and re-seeded on the other man. The bug is using the confidence cutoff for the "is the track still right?" check: a weak detection is not trusted enough to *move* the track, but it is enough to *confirm* it.
+- Takeaway: re-detection can only help when it is very sure the track is wrong. Next: I5b (confirm against all candidates), checked on the real **dev** set before the test set, since this failure was found on the test set.
+
+## 2026-10-30: Evaluating each stage on its own; checking the metrics
+
+- Problem: end-to-end numbers mix stages. A grounding miss makes J&F, PSNR and LPIPS all bad even if tracking and filling worked, so a table of end-to-end means cannot say which stage to improve.
+- New: `python -m src.stage_report` writes `results/stage_report.md` with one section per stage: (1) grounding hit rate, (2) tracking J&F from a correct click, and for text versions on the clips grounding got right only, (3) fill quality with every fill method given the **true** masks (`--overlay configs/fill_only.yaml`, results in `results/fill_results.csv`), (4) end to end.
+- First finding from the split: on real video, text versions track well once grounding is right (J&F on grounding hits 0.87–0.91, vs. 0.48–0.67 overall). Nearly all of the text-prompt loss is grounding.
+- New: `python -m src.metric_check` scores fake outputs of known quality on the 10 synthetic test clips with the exact evaluation code (no tuning involved). Means:
+
+| Case | PSNR mask ↑ | SSIM ↑ | LPIPS mask ↓ | Flicker ↓ | Flicker RAFT ↓ |
+|---|---|---|---|---|---|
+| perfect (clean video) | 100.0 | 1.000 | 0.000 | 7.63 | 7.31 |
+| not removed | 10.45 | 0.922 | 0.404 | 34.11 | 36.34 |
+| gray box | 12.03 | 0.929 | 0.439 | 7.76 | 9.70 |
+| blurred clean video | 20.51 | 0.949 | 0.305 | 5.55 | 5.93 |
+| clean video shifted 4 px | 17.68 | 0.933 | 0.087 | 10.07 | 10.13 |
+| clean + per-frame brightness flicker | 37.27 | 0.998 | 0.007 | 11.71 | 11.56 |
+
+- What it shows:
+  - PSNR mask prefers the blurred fill to the sharp, slightly shifted one (20.5 vs 17.7); LPIPS says the opposite (0.305 vs 0.087), which matches how they look. This is the measured reason LPIPS is a primary metric.
+  - Flicker only measures stability, not correctness: a flat gray box is as stable as the clean video (7.76 vs 7.63), and blur is *more* stable than the clean video (5.55). Flicker must be read next to the clean-video reference and next to LPIPS, never alone.
+  - Flicker is the only metric that catches the flickering case (7.6 → 11.7) while per-frame metrics call it near-perfect (PSNR 37, LPIPS 0.007). The temporal metric is needed.
+  - SSIM is computed on the whole frame, so it barely separates "object not removed" (0.922) from perfect (1.000). It is the weakest metric here; kept for continuity.
+- Agreement (Spearman over all (version, clip) rows of results.csv, `results/metric_agreement.csv`): Farneback vs RAFT flicker 0.98 (they rank outputs the same; RAFT stays primary because it is independent of our method's flow), PSNR mask vs LPIPS 0.38 (they measure different things, so both are reported).
+
+## 2026-10-30: Fill stage on its own (true masks)
+
+- Command: `python -m src.run_pipeline --config configs/<B0|I1|I3|I3b|I4>.yaml --overlay configs/fill_only.yaml` (results in `results/fill_results.csv`).
+
+| Fill (true masks) | PSNR mask ↑ | LPIPS mask ↓ | Flicker RAFT ↓ | Fill s/frame |
+|---|---|---|---|---|
+| B0 Telea | 17.33 | 0.249 | 16.96 | 0.03 |
+| I1 Telea + 5 px dilation | 15.77 | 0.309 | 18.96 | 0.03 |
+| I3 flow-guided | 16.58 | 0.248 | 16.13 | 0.16 |
+| I3b flow-guided, hop cap | 17.46 | 0.239 | 15.65 | 0.16 |
+| I4 ProPainter | **22.26** | **0.125** | **6.99** | 4.37 |
+| (clean video) | – | – | 7.31 | – |
+
+- Same ranking as end to end, so the fill differences reported before were fill differences, not mask side effects. Perfect masks raise every method by about 1 dB PSNR mask (B0 16.39 → 17.33, I4 21.14 → 22.26) and lower LPIPS (B0 0.303 → 0.249): that gap is what tracking errors cost the fill.
+- I1 is still worst with true masks, so its loss comes from the bigger hole, not from SAM 2.
+- ProPainter's flicker on true masks (6.99) is at the clean video's level (7.31): its remaining error is per-frame detail (LPIPS 0.125), not temporal stability.

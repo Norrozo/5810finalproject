@@ -128,7 +128,8 @@ def redetect_corrections(masks: list[np.ndarray], keyframes: dict, rd_cfg: dict,
       - the tracked mask is (nearly) empty: the object was lost, e.g. after leaving the
         frame or a long occlusion, or
       - the tracked mask overlaps no detection (box IoU < match_iou): it drifted onto
-        something that does not match the prompt.
+        something that does not match the prompt. With match_all_candidates (I5b) every
+        candidate counts here, not only the confident ones.
     A track that still sits on one of the detections is left alone, so a correct track
     is never switched to a look-alike.
 
@@ -152,12 +153,16 @@ def redetect_corrections(masks: list[np.ndarray], keyframes: dict, rd_cfg: dict,
         if not dets:
             continue
         m = masks[k]
+        # I5b: the track is confirmed if it sits on ANY candidate, even a low-scoring one.
+        # (I5 only checked confident ones, so a correct track whose object scored low on
+        # that frame was "corrected" onto a confident look-alike.)
+        confirm = cands if rd_cfg.get("match_all_candidates") else dets
         if m.mean() < rd_cfg.get("min_area_frac", 0.001):
             reason = "lost"
-        elif max(box_iou(mask_to_box(m), d["box"]) for d in dets) < rd_cfg.get("match_iou", 0.3):
+        elif max(box_iou(mask_to_box(m), d["box"]) for d in confirm) < rd_cfg.get("match_iou", 0.3):
             reason = "drifted"
         else:
-            anchor_box = max(dets, key=lambda d: box_iou(mask_to_box(m), d["box"]))["box"]
+            anchor_box = max(confirm, key=lambda d: box_iou(mask_to_box(m), d["box"]))["box"]
             continue
         best = nearest(dets, anchor_box)
         anchor_box = best["box"]

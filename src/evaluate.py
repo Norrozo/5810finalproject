@@ -131,6 +131,22 @@ def flicker_scores(outputs: list[np.ndarray], gts: list[np.ndarray], regions: li
 
 # ---------------------------------------------------------------- per clip
 
+def fill_scores(outputs: list[np.ndarray], gts: list[np.ndarray], regions: list[np.ndarray],
+                deep: bool = True, raft_cache: Path | None = None) -> dict:
+    """All fill-quality metrics for one clip: output frames vs. the clean video.
+    `regions` = the object's true mask, slightly dilated (where the fill happened)."""
+    row = {"psnr": np.mean([psnr(o, g) for o, g in zip(outputs, gts)]),
+           "psnr_mask": np.mean([psnr(o, g, r) for o, g, r in zip(outputs, gts, regions)]),
+           "ssim": np.mean([structural_similarity(g, o, channel_axis=2, data_range=255)
+                            for o, g in zip(outputs, gts)])}
+    row["flicker"], row["flicker_ref"] = flicker_scores(outputs, gts, regions)
+    if deep:
+        from src import metrics_deep
+        row["lpips_mask"] = metrics_deep.lpips_mask(outputs, gts, regions)
+        row["flicker_raft"], row["flicker_raft_ref"] = metrics_deep.flicker_raft(outputs, gts, regions, cache=raft_cache)
+    return row
+
+
 def evaluate_clip(cfg: dict, clip: str) -> dict:
     paths = clip_paths(cfg, clip)
     ev = cfg.get("evaluation", {})
@@ -156,7 +172,7 @@ def evaluate_clip(cfg: dict, clip: str) -> dict:
         row["grounding_hit"] = int(row["grounding_iou"] > 0.5)
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * ev.get("region_dilation", 5) + 1,) * 2)
-    Js, Fs, psnrs, psnr_masks, ssims = [], [], [], [], []
+    Js, Fs = [], []
     outputs, gts, regions = [], [], []
     has_clean = paths["gt_clean"].exists()  # real (non-pasted) clips have masks but no clean background
     for f in frames:
@@ -167,24 +183,14 @@ def evaluate_clip(cfg: dict, clip: str) -> dict:
         if not has_clean:
             continue
 
-        out = read_image(paths["inpainted"] / f.name)
-        gt = read_image(paths["gt_clean"] / f.name)
-        region = cv2.dilate(gt_mask.astype(np.uint8), kernel) > 0
-        psnrs.append(psnr(out, gt))
-        psnr_masks.append(psnr(out, gt, region))
-        ssims.append(structural_similarity(gt, out, channel_axis=2, data_range=255))
-        outputs.append(out); gts.append(gt); regions.append(region)
+        outputs.append(read_image(paths["inpainted"] / f.name))
+        gts.append(read_image(paths["gt_clean"] / f.name))
+        regions.append(cv2.dilate(gt_mask.astype(np.uint8), kernel) > 0)
 
     row.update(J=np.mean(Js), F=np.mean(Fs), JF=(np.mean(Js) + np.mean(Fs)) / 2)
     if has_clean:
-        flicker, flicker_ref = flicker_scores(outputs, gts, regions)
-        row.update(psnr=np.mean(psnrs), psnr_mask=np.mean(psnr_masks), ssim=np.mean(ssims),
-                   flicker=flicker, flicker_ref=flicker_ref)
-        if ev.get("deep_metrics", True):
-            from src import metrics_deep
-            row["lpips_mask"] = metrics_deep.lpips_mask(outputs, gts, regions)
-            row["flicker_raft"], row["flicker_raft_ref"] = metrics_deep.flicker_raft(
-                outputs, gts, regions, cache=Path(cfg["data_root"]) / clip / "raft_flow.npy")
+        row.update(fill_scores(outputs, gts, regions, ev.get("deep_metrics", True),
+                               raft_cache=Path(cfg["data_root"]) / clip / "raft_flow.npy"))
     return {k: (round(float(v), 4) if isinstance(v, (float, np.floating)) else v) for k, v in row.items()}
 
 
