@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pandas as pd
 
-TEXT_VERSIONS = ["I2", "I2b", "I2c", "I5"]
+TEXT_VERSIONS = ["I2", "I2b", "I2c", "I5", "I5b"]
 FILL_VERSIONS = ["B0", "I1", "I3", "I3b", "I4"]
 FILL_COLS = {"psnr_mask": "PSNR mask ↑", "lpips_mask": "LPIPS mask ↓", "ssim": "SSIM ↑",
              "flicker_raft": "Flicker RAFT ↓", "flicker_raft_ref": "(clean video)", "spf_inpaint": "Fill s/frame ↓"}
@@ -46,27 +46,31 @@ def hits(df: pd.DataFrame, v: str) -> str:
     return f"{int(d.grounding_hit.sum())}/{len(d)}" if len(d) else "–"
 
 
-def grounding_section(syn, real, dev) -> str:
-    rows = {v: {"syn": hits(syn, v), "real": hits(real, v),
-                "dev": (lambda d: f"{int(d.hit.sum())}/{len(d)}" if len(d) else "–")(dev[dev.variant == v])}
-            for v in TEXT_VERSIONS}
+def grounding_section(syn, real, dev, real_dev) -> str:
+    def dev_hits(v):  # full dev runs first, else the frame-0-only grounding evaluation
+        if (real_dev.version == v).any():
+            return hits(real_dev, v)
+        d = dev[dev.variant == v]
+        return f"{int(d.hit.sum())}/{len(d)}" if len(d) else "–"
+    rows = {v: {"syn": hits(syn, v), "real": hits(real, v), "dev": dev_hits(v)} for v in TEXT_VERSIONS}
     return table(pd.DataFrame(rows).T, {"syn": "Synthetic test", "real": "Real test", "dev": "Real dev (tuning)"})
 
 
-def tracking_section(syn, real) -> str:
+def tracking_section(syn, real, real_dev) -> str:
     rows = {}
     for v in ["B0"] + TEXT_VERSIONS:
         r = {}
-        for name, df in (("syn", syn), ("real", real)):
+        for name, df in (("syn", syn), ("real", real), ("dev", real_dev)):
             d = df[df.version == v]
             if not len(d):
                 continue
             r[f"{name}_all"] = d.JF.mean()
-            if v != "B0" and "grounding_hit" in d:
+            if v != "B0" and name != "dev" and "grounding_hit" in d:
                 r[f"{name}_hit"] = d[d.grounding_hit == 1].JF.mean()
         rows[v + (" (click)" if v == "B0" else " (text)")] = r
     return table(pd.DataFrame(rows).T, {"syn_all": "Synthetic J&F", "syn_hit": "…grounding right only",
-                                        "real_all": "Real J&F", "real_hit": "…grounding right only"})
+                                        "real_all": "Real J&F", "real_hit": "…grounding right only",
+                                        "dev_all": "Real dev J&F"})
 
 
 def mean_by_version(df: pd.DataFrame, versions: list[str], cols) -> pd.DataFrame:
@@ -81,6 +85,7 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     syn, real = read("results/results.csv"), read("results/real_results.csv")
+    real_dev = read("results/real_dev_results.csv")
     fill, dev = read("results/fill_results.csv"), read("results/grounding_dev.csv")
     check = read("results/metric_check.csv")
 
@@ -88,11 +93,11 @@ def main(argv=None):
              "Do not edit by hand.",
              "## 1. Grounding: did the text prompt pick the right object?",
              "Box IoU > 0.5 with the true object on frame 0. Click prompts (B0) skip this stage.",
-             grounding_section(syn, real, dev),
+             grounding_section(syn, real, dev, real_dev),
              "## 2. Tracking: how good are the masks?",
              "B0 starts from a correct click, so its J&F is the tracker on its own. For text versions, "
              "the '…grounding right only' column removes grounding misses, which isolates tracking again.",
-             tracking_section(syn, real),
+             tracking_section(syn, real, real_dev),
              "## 3. Fill: given perfect masks, how good is the fill?",
              "Each fill method on the true masks (`--overlay configs/fill_only.yaml`), synthetic test clips.",
              table(mean_by_version(fill, FILL_VERSIONS, FILL_COLS), FILL_COLS) if len(fill) else "_Not run yet._",

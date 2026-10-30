@@ -10,20 +10,22 @@ Box IoU > 0.5 with the true object on frame 0. Click prompts (B0) skip this stag
 |---|---|---|---|
 | I2 | 9/10 | 5/10 | 11/14 |
 | I2b | 6/10 | 5/10 | 6/14 |
-| I2c | 9/10 | 7/10 | – |
-| I5 | 9/10 | 7/10 | – |
+| I2c | 9/10 | 7/10 | 14/14 |
+| I5 | 9/10 | 7/10 | 14/14 |
+| I5b | – | – | 14/14 |
 
 ## 2. Tracking: how good are the masks?
 
 B0 starts from a correct click, so its J&F is the tracker on its own. For text versions, the '…grounding right only' column removes grounding misses, which isolates tracking again.
 
-| Version | Synthetic J&F | …grounding right only | Real J&F | …grounding right only |
-|---|---|---|---|---|
-| B0 (click) | 0.943 | – | 0.798 | – |
-| I2 (text) | 0.890 | 0.976 | 0.482 | 0.874 |
-| I2b (text) | 0.681 | 0.976 | 0.483 | 0.879 |
-| I2c (text) | 0.890 | 0.976 | 0.674 | 0.906 |
-| I5 (text) | 0.890 | 0.976 | 0.600 | 0.798 |
+| Version | Synthetic J&F | …grounding right only | Real J&F | …grounding right only | Real dev J&F |
+|---|---|---|---|---|---|
+| B0 (click) | 0.943 | – | 0.798 | – | – |
+| I2 (text) | 0.890 | 0.976 | 0.482 | 0.874 | – |
+| I2b (text) | 0.681 | 0.976 | 0.483 | 0.879 | – |
+| I2c (text) | 0.890 | 0.976 | 0.674 | 0.906 | 0.912 |
+| I5 (text) | 0.890 | 0.976 | 0.600 | 0.798 | 0.799 |
+| I5b (text) | – | – | – | – | 0.866 |
 
 ## 3. Fill: given perfect masks, how good is the fill?
 

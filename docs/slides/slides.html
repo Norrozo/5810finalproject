@@ -34,6 +34,8 @@
   th { border-bottom: 2px solid var(--ink); font-size: 16px; color: var(--quiet); font-weight: 600; }
   td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
   tr.hl td { background: var(--tint); font-weight: 700; }
+  table.tight td, table.tight th { padding: 5px 10px; white-space: nowrap; }
+  td.when { white-space: nowrap; }
   .big { font-size: 64px; font-weight: 800; color: var(--accent); line-height: 1; }
   .stat { flex: 1; border-top: 3px solid var(--accent); padding-top: 12px; }
   .stat .lbl { font-size: 18px; color: var(--quiet); margin-top: 6px; }
@@ -357,7 +359,128 @@
   <div class="foot"><span>DAVIS clips not used in the benchmark</span><span>11</span></div>
 </section>
 
-<!-- 12. Lessons + next -->
+<!-- 12. Real test set: grounding -->
+<section class="slide">
+  <div class="kicker">Real-video test set &middot; iterations I2b, I2c</div>
+  <h1>On real video, the weak stage is <i>which</i> object; so we ask when unsure</h1>
+  <div class="row" style="gap:36px; align-items:flex-start">
+    <div style="flex:1.1">
+      <figure><img src="img/ask_pigs.jpg"><figcaption>&ldquo;piglet&rdquo;: the top box (0.78) is the adult pig. Three scores within 0.01, so I2c asks; the user clicks #2.</figcaption></figure>
+    </div>
+    <div class="col">
+      <table>
+        <tr><th>10 real DAVIS clips</th><th class="n">Right object</th><th class="n">J&amp;F</th></tr>
+        <tr><td>B0 click</td><td class="n">&ndash;</td><td class="n">0.798</td></tr>
+        <tr><td>I2 text</td><td class="n">5/10</td><td class="n">0.482</td></tr>
+        <tr><td><span class="tag bad">I2b</span> + CLIP re-rank</td><td class="n">5/10</td><td class="n">0.483</td></tr>
+        <tr class="hl"><td><span class="tag good">I2c</span> ask if unsure</td><td class="n">7/10</td><td class="n">0.674</td></tr>
+      </table>
+      <p class="small" style="margin-top:14px">Designed on a separate real <b>dev</b> set (14 clips): the right object was in the top 3 on 14/14, and every miss had a close runner-up. Rule: ask if runner-up &ge; 0.7 &times; best &rarr; asks on 3 of 10 test clips. CLIP re-ranking scored 6/14 on dev: rejected.</p>
+      <p class="small">When grounding is right, tracking real video is fine: J&amp;F 0.91.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Benchmark: a simulated user clicks the true object &middot; results/real_results.csv</span><span>12</span></div>
+</section>
+
+<!-- 13. I5 -->
+<section class="slide">
+  <div class="kicker">Iterations I5, I5b: re-detection &middot; a negative result</div>
+  <h1>Re-checking the tracker with the detector made it worse, and we know why</h1>
+  <div class="row" style="gap:40px; align-items:flex-start">
+    <div class="col">
+      <p><b>Idea.</b> Run the detector again every 10 frames; if SAM 2's mask matches no detection, assume it drifted and restart it on the detection.</p>
+      <p><b>I5</b> trusted only confident detections. On real <i>loading</i> the right man scored 0.32 (&lt; 0.35) on frame 10, so the correct track was &ldquo;fixed&rdquo; onto another man: J&amp;F 0.99 &rarr; 0.24.</p>
+      <p><b>I5b</b> confirms the track against every candidate. Checked on the dev set first: fewer false alarms, still worse. Every remaining &ldquo;fix&rdquo; hit a frame where the detector didn't see the object at all.</p>
+    </div>
+    <div class="col">
+      <table>
+        <tr><th>Real J&amp;F</th><th class="n">Dev (14)</th><th class="n">Test (10)</th></tr>
+        <tr class="hl"><td>I2c, no re-detection</td><td class="n">0.912</td><td class="n">0.674</td></tr>
+        <tr><td><span class="tag bad">I5</span></td><td class="n">0.799</td><td class="n">0.600</td></tr>
+        <tr><td><span class="tag bad">I5b</span></td><td class="n">0.866</td><td class="n">not run</td></tr>
+      </table>
+      <div class="stat" style="margin-top:22px; border-color:var(--bad)"><div class="big" style="color:var(--bad); font-size:52px">0 of 24</div><div class="lbl">real clips where re-detection made a correct fix. SAM 2 never lost the object; the detector missed it in single frames.</div></div>
+      <p class="small" style="margin-top:12px">Decision: rejected. The detector is the less reliable signal, so it must not override the tracker.</p>
+    </div>
+  </div>
+  <div class="foot"><span>results/real_dev_results.csv &middot; real_results.csv &middot; I5b rejected on dev, so never run on test</span><span>13</span></div>
+</section>
+
+
+<!-- 14. Stage-by-stage -->
+<section class="slide">
+  <div class="kicker">A better evaluation framework</div>
+  <h1>We score each stage on its own, so one stage's errors can't hide in another</h1>
+  <div class="row" style="gap:18px; align-items:stretch">
+    <div class="col stat"><h2>1 &middot; Grounding</h2><p class="small">Did the text pick the right object? Frame 0, box IoU &gt; 0.5.</p>
+      <div class="big" style="font-size:46px">7/10</div><div class="lbl">real clips (I2c) &middot; 9/10 synthetic</div></div>
+    <div class="col stat"><h2>2 &middot; Tracking</h2><p class="small">Masks from a correct start: a click, or text clips grounded right.</p>
+      <div class="big" style="font-size:46px">0.80&ndash;0.91</div><div class="lbl">real J&amp;F &middot; 0.94 synthetic</div></div>
+    <div class="col stat"><h2>3 &middot; Fill</h2><p class="small">Every fill method gets the <b>true</b> masks, so only the fill is measured.</p>
+      <div class="big" style="font-size:46px">0.125</div><div class="lbl">LPIPS, ProPainter (Telea 0.249) &middot; flicker = clean video's</div></div>
+    <div class="col stat" style="border-color:var(--quiet)"><h2>4 &middot; End to end</h2><p class="small">The full pipeline: what a user gets. All stages' errors combined.</p>
+      <div class="big" style="font-size:46px;color:var(--quiet)">0.142</div><div class="lbl">LPIPS, I4 &middot; perfect masks would add +1.1 dB PSNR</div></div>
+  </div>
+  <div class="row" style="gap:36px; margin-top:26px">
+    <div class="col"><p><b>What the split tells us.</b> On real video, text versions lose J&amp;F 0.91 &rarr; 0.67 to grounding but almost nothing to tracking; ProPainter's fill is already as steady as the real video. The next gains are in <i>what</i> to remove, not how to track or fill.</p></div>
+    <div class="col"><p class="small">How: <code>--overlay configs/fill_only.yaml</code> swaps SAM 2 for the true masks; <code>python -m src.stage_report</code> builds the four tables from the result CSVs (results/stage_report.md). Fill ranking is the same with true masks as end to end, so earlier fill comparisons were fair.</p></div>
+  </div>
+  <div class="foot"><span>results/stage_report.md &middot; fill_results.csv &middot; real_results.csv</span><span>14</span></div>
+</section>
+
+
+<!-- 15. Metric check -->
+<section class="slide">
+  <div class="kicker">Evaluating the evaluation</div>
+  <h1>Do the metrics measure what we claim? We tested them on fakes</h1>
+  <div class="row" style="gap:36px; align-items:flex-start">
+    <div style="flex:1.35">
+      <table style="font-size:17px">
+        <tr><th>Fake output</th><th class="n">PSNR mask &uarr;</th><th class="n">LPIPS mask &darr;</th><th class="n">Flicker &darr;</th></tr>
+        <tr><td>Perfect (the clean video)</td><td class="n">100</td><td class="n">0.000</td><td class="n">7.3</td></tr>
+        <tr><td>Object not removed</td><td class="n">10.4</td><td class="n">0.404</td><td class="n">36.3</td></tr>
+        <tr><td>Flat gray box</td><td class="n">12.0</td><td class="n">0.439</td><td class="n" style="color:var(--bad);font-weight:700">9.7</td></tr>
+        <tr><td>Blurred background</td><td class="n" style="color:var(--bad);font-weight:700">20.5</td><td class="n">0.305</td><td class="n" style="color:var(--bad);font-weight:700">5.9</td></tr>
+        <tr><td>Sharp background, 4 px off</td><td class="n">17.7</td><td class="n" style="color:var(--good);font-weight:700">0.087</td><td class="n">10.1</td></tr>
+        <tr><td>Right pixels, flickering</td><td class="n">37.3</td><td class="n">0.007</td><td class="n" style="color:var(--good);font-weight:700">11.6</td></tr>
+      </table>
+      <p class="small" style="margin-top:8px">Mean over the 10 synthetic test clips, scored by the same code as every result. Flicker = RAFT-aligned.</p>
+    </div>
+    <div class="col">
+      <ul style="padding-left:20px">
+        <li style="font-size:19px"><b>PSNR rewards blur</b> (20.5 &gt; 17.7); LPIPS ranks them the way people do. &rarr; LPIPS is primary.</li>
+        <li style="font-size:19px"><b>Flicker can't tell a gray box from a good fill</b>; blur is even steadier than the real video. &rarr; Read flicker only next to LPIPS.</li>
+        <li style="font-size:19px"><b>Only flicker catches flickering</b>; per-frame scores call it near-perfect. &rarr; A temporal metric is required.</li>
+        <li style="font-size:19px">Farneback vs RAFT flicker rank outputs the same (&rho; = 0.98): our method isn't favored.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>python -m src.metric_check &middot; results/metric_check.csv, metric_agreement.csv</span><span>15</span></div>
+</section>
+
+<!-- 16. Iteration record -->
+<section class="slide">
+  <div class="kicker">Proof of iteration</div>
+  <h1>Every change was one change, measured, then kept or rejected</h1>
+  <table class="tight" style="font-size:15px">
+    <tr><th>Tag</th><th>One change</th><th>Stage</th><th>Measured on</th><th>Result</th><th>Decision</th></tr>
+    <tr><td>B0</td><td>Click &rarr; SAM 2 &rarr; Telea</td><td>all</td><td>synthetic + real</td><td>J&amp;F 0.943 &middot; LPIPS 0.303</td><td>baseline</td></tr>
+    <tr><td>I1</td><td>Grow mask 5 px</td><td>refine</td><td>synthetic</td><td>PSNR mask 16.39 &rarr; 15.51</td><td><span class="tag bad">rejected</span></td></tr>
+    <tr><td>I2</td><td>Text prompt (Grounding DINO)</td><td>grounding</td><td>synthetic + real</td><td>right object 9/10 &middot; real 5/10</td><td><span class="tag">kept</span></td></tr>
+    <tr><td>I3</td><td>Our flow-guided fill</td><td>fill</td><td>synthetic</td><td>flicker &minus;8% (RAFT) &middot; PSNR mask down</td><td><span class="tag">analysed</span></td></tr>
+    <tr><td>I3b</td><td>Cap at 5 hops (tuned on dev)</td><td>fill</td><td>dev &rarr; synthetic</td><td>LPIPS 0.294 &middot; PSNR mask 16.50</td><td><span class="tag good">kept: fast</span></td></tr>
+    <tr><td>I4</td><td>ProPainter</td><td>fill</td><td>synthetic</td><td>LPIPS 0.142 &middot; flicker 19.0 &rarr; 8.5</td><td><span class="tag good">kept: best</span></td></tr>
+    <tr><td>I2b</td><td>CLIP re-ranking</td><td>grounding</td><td>real dev</td><td>11/14 &rarr; 6/14</td><td><span class="tag bad">rejected</span></td></tr>
+    <tr><td>I2c</td><td>Ask &ldquo;which one?&rdquo; when unsure</td><td>grounding</td><td>dev &rarr; real test</td><td>5/10 &rarr; 7/10 &middot; J&amp;F 0.48 &rarr; 0.67</td><td><span class="tag good">kept</span></td></tr>
+    <tr><td>I5</td><td>Re-detect every 10 frames</td><td>tracking</td><td>real test</td><td>J&amp;F 0.674 &rarr; 0.600</td><td><span class="tag bad">rejected</span></td></tr>
+    <tr><td>I5b</td><td>Confirm vs. all candidates</td><td>tracking</td><td>real dev</td><td>J&amp;F 0.912 &rarr; 0.866</td><td><span class="tag bad">rejected</span></td></tr>
+  </table>
+  <p class="small" style="margin-top:8px">Settings are chosen on dev sets (DAVIS train), then run once on the test sets (DAVIS val). Each iteration has its own config, its own output folder and an entry in docs/experiment_log.md.</p>
+  <div class="foot"><span>Final system: I2c grounding &middot; SAM 2 &middot; ProPainter (or I3b when speed matters)</span><span>16</span></div>
+</section>
+
+
+<!-- 17. Lessons + next -->
 <section class="slide">
   <div class="kicker">What we learned &middot; what's next</div>
   <h1>The remaining failures are about <i>what</i> to remove, not how to fill</h1>
@@ -367,24 +490,25 @@
       <ul>
         <li>Measure before fixing: the hop analysis turned a failed iteration into a fix</li>
         <li>Tune on a separate set, or the test numbers lie</li>
-        <li>PSNR rewards blur, so always look at the videos too</li>
-        <li>A pasted benchmark hides real effects: soft edges, shadows</li>
+        <li>Score each stage alone: on real video the loss is grounding, not tracking or filling</li>
+        <li>Test the metrics too: PSNR rewards blur, flicker rewards a gray box</li>
+        <li>A pasted benchmark hides real effects: look-alikes, soft edges, shadows</li>
       </ul>
     </div>
     <div class="col">
       <h2>Next iterations</h2>
       <table>
         <tr><th>When</th><th>Iteration</th></tr>
-        <tr><td>Oct</td><td>LPIPS metric; re-test I1 on real clips</td></tr>
-        <tr><td>Nov 20</td><td><b>I5</b> re-detect every N frames &middot; <b>I6</b> speed (&lt; 1 s/frame)</td></tr>
-        <tr><td>Dec 6</td><td><b>I7</b> multiple objects (&ldquo;the player and the racket&rdquo;), shadows</td></tr>
+        <tr><td class="when">Nov 20</td><td><b>I6</b> speed: smaller SAM 2, faster fill (&lt; 1 s/frame)</td></tr>
+        <tr><td class="when">Dec 6</td><td><b>I7</b> multiple objects (&ldquo;the player and the racket&rdquo;), shadows; failure study</td></tr>
+        <tr><td class="when">Dec 10</td><td>Final report from the experiment log</td></tr>
       </table>
     </div>
   </div>
-  <div class="foot"><span>Proposal Oct 9 &middot; Midterm Nov 20 &middot; Project Day Dec 6 &middot; Final Dec 10</span><span>12</span></div>
+  <div class="foot"><span>Proposal Oct 9 &middot; Midterm Nov 20 &middot; Project Day Dec 6 &middot; Final Dec 10</span><span>17</span></div>
 </section>
 
-<!-- 13. Demo -->
+<!-- 18. Demo -->
 <section class="slide title-slide">
   <div class="kicker">Live demo</div>
   <h1 style="font-size:52px">Upload a video. Type what to remove.</h1>
@@ -393,7 +517,7 @@
     <figure><img src="img/end_before.jpg"><figcaption>Input</figcaption></figure>
     <figure><img src="img/end_after.jpg"><figcaption>&ldquo;remove the person&rdquo;</figcaption></figure>
   </div>
-  <div class="foot"><span>Questions?</span><span>13</span></div>
+  <div class="foot"><span>Questions?</span><span>18</span></div>
 </section>
 
 </body>

@@ -275,3 +275,18 @@ Template:
 - Same ranking as end to end, so the fill differences reported before were fill differences, not mask side effects. Perfect masks raise every method by about 1 dB PSNR mask (B0 16.39 → 17.33, I4 21.14 → 22.26) and lower LPIPS (B0 0.303 → 0.249): that gap is what tracking errors cost the fill.
 - I1 is still worst with true masks, so its loss comes from the bigger hole, not from SAM 2.
 - ProPainter's flicker on true masks (6.99) is at the clean video's level (7.31): its remaining error is per-frame detail (LPIPS 0.125), not temporal stability.
+
+## 2026-10-30: I5b on the real dev set; re-detection rejected
+
+- Change (I5b): a track counts as confirmed if it matches *any* keyframe candidate, not only confident ones. Checked on the real **dev** set (14 DAVIS train clips with look-alikes, full masks; new overlay `configs/real_dev_set.yaml`), because the I5 failure was found on the test set.
+- Commands: `python -m src.run_pipeline --config configs/<I2c|I5|I5b>.yaml --overlay configs/real_dev_set.yaml` (`results/real_dev_results.csv`).
+
+| Real dev (14 clips) | Grounding hits | J&F | Clips re-tracked |
+|---|---|---|---|
+| I2c (no re-detection) | 14/14 | **0.912** | – |
+| I5 | 14/14 | 0.799 | 7 |
+| I5b | 14/14 | 0.866 | 3 |
+
+- I5b removed most false corrections (crossing 0.364 → 0.948, lindy-hop, schoolgirls) but is still below no re-detection. All 4 remaining corrections were false alarms: the track was right (IoU with the true mask 0.93–0.95), but the detector did not find the object on that keyframe at all, so the track matched nothing and was moved to another object (dancing 0.938 → 0.640, upside-down 0.901 → 0.580).
+- Over 24 real clips (dev + test) re-detection made **no** correct correction. SAM 2's memory never lost the object on these clips, while the detector misses objects in single frames (unusual poses, upside-down). The detector is the less reliable signal, so it should not override the tracker.
+- Decision: **re-detection rejected** (I5 and I5b kept as configs for reproducibility). I5b is not run on the test set: it was rejected on dev. The final system keeps I2c grounding + SAM 2 tracking. Re-detection would only make sense for objects that really leave the frame, which our clips do not test.
