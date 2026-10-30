@@ -75,6 +75,10 @@ def test_redetect():
     assert [(c["frame"], c["reason"]) for c in out] == [(1, "lost"), (3, "drifted")], out
     weak = {"1": [{"box": [60, 60, 90, 90], "score": 0.1}]}
     assert redetect_corrections(masks, weak, {}) == [], "low-score detections must be ignored"
+    # Two look-alikes: the lost track is re-seeded on the one nearest the object, not the top score
+    twins = {"1": [{"box": [60, 60, 90, 90], "score": 0.9}, {"box": [22, 20, 42, 40], "score": 0.6}]}
+    out = redetect_corrections([m, np.zeros_like(m)], twins, {}, anchor_box=[20, 20, 40, 40])
+    assert out[0]["box"] == [22, 20, 42, 40], out
 
 
 def test_ambiguity():

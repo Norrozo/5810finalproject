@@ -119,7 +119,8 @@ def segment_sam2(cfg: dict, frames: list[Path], prompts: list[dict]) -> list[np.
     return masks
 
 
-def redetect_corrections(masks: list[np.ndarray], keyframes: dict, rd_cfg: dict) -> list[dict]:
+def redetect_corrections(masks: list[np.ndarray], keyframes: dict, rd_cfg: dict,
+                         anchor_box: list[float] | None = None) -> list[dict]:
     """I5: decide where the tracker has lost the object, using detections on every N-th frame.
 
     On each keyframe k with a confident detection (score >= min_score), the track is
@@ -130,8 +131,20 @@ def redetect_corrections(masks: list[np.ndarray], keyframes: dict, rd_cfg: dict)
         something that does not match the prompt.
     A track that still sits on one of the detections is left alone, so a correct track
     is never switched to a look-alike.
+
+    The correction is the detection nearest the object's last confirmed position (the
+    frame-0 box, then each keyframe where the track matched a detection), not simply the
+    top-scoring one: with several look-alikes (I2c asks the user which one), the top
+    detection may be a different object than the one being removed.
     """
     from src.evaluate import box_iou, mask_to_box
+    def nearest(dets, box):
+        if box is None:
+            return dets[0]
+        cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+        dist = lambda d: ((d["box"][0] + d["box"][2]) / 2 - cx) ** 2 + ((d["box"][1] + d["box"][3]) / 2 - cy) ** 2
+        return max(dets, key=lambda d: (box_iou(box, d["box"]), -dist(d)))
+
     corrections = []
     for k_str, cands in sorted(keyframes.items(), key=lambda kv: int(kv[0])):
         k = int(k_str)
@@ -144,8 +157,11 @@ def redetect_corrections(masks: list[np.ndarray], keyframes: dict, rd_cfg: dict)
         elif max(box_iou(mask_to_box(m), d["box"]) for d in dets) < rd_cfg.get("match_iou", 0.3):
             reason = "drifted"
         else:
+            anchor_box = max(dets, key=lambda d: box_iou(mask_to_box(m), d["box"]))["box"]
             continue
-        corrections.append({"frame": k, "box": dets[0]["box"], "score": dets[0]["score"], "reason": reason})
+        best = nearest(dets, anchor_box)
+        anchor_box = best["box"]
+        corrections.append({"frame": k, "box": best["box"], "score": best["score"], "reason": reason})
     return corrections
 
 
@@ -210,7 +226,8 @@ def run(cfg: dict, clip: str, click: list[int] | None = None, overwrite: bool = 
             masks = segment_sam2(cfg, frames, [prompt])
             keyframes = json.loads(paths["boxes"].read_text()).get("keyframes") if use_box else None
             if keyframes:
-                corrections = redetect_corrections(masks, keyframes, cfg["grounding"].get("redetect", {}))
+                corrections = redetect_corrections(masks, keyframes, cfg["grounding"].get("redetect", {}),
+                                                   anchor_box=prompt["box"])
                 prompt["corrections"] = corrections
                 paths["used_prompt"].write_text(json.dumps(prompt, indent=2))
                 if corrections:

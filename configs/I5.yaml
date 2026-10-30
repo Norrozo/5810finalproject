@@ -1,6 +1,7 @@
-# I5: I2 + periodic re-detection. Grounding DINO also runs on every 10th frame; where the
-# SAM 2 track is lost or matches no detection, that detection is added as a correction
-# prompt and the clip is re-tracked. Settings fixed in advance (not tuned). Else identical to I2.
+# I5: I2c + periodic re-detection. Grounding DINO also runs on every 10th frame; where the
+# SAM 2 track is lost or matches no detection, the detection nearest the object's last
+# confirmed position is added as a correction prompt and the clip is re-tracked.
+# Settings fixed in advance (not tuned). Else identical to I2c.
 version: I5
 
 data_root: data
@@ -14,12 +15,16 @@ max_frames: 60
 grounding:
   method: grounding_dino
   hf_model: IDEA-Research/grounding-dino-tiny
-  box_threshold: 0.35       # Hugging Face example defaults, not tuned
+  box_threshold: 0.2        # as I2c
   text_threshold: 0.25
   prompts_file: configs/eval_prompts.txt
+  disambiguate:             # as I2c
+    ratio: 0.7
+    max_choices: 3
+    simulate_user: true
   redetect:
     every: 10               # detect on frames 10, 20, 30, ...
-    min_score: 0.35         # only trust confident detections (same as box_threshold)
+    min_score: 0.35         # only trust confident detections (I2's box_threshold)
     min_area_frac: 0.001    # tracked mask below 0.1% of the frame = object lost
     match_iou: 0.3          # tracked box overlapping no detection this much = drifted
 max_height: 480
