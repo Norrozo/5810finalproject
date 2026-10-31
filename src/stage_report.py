@@ -58,16 +58,16 @@ def grounding_section(syn, real, dev, real_dev) -> str:
 
 def tracking_section(syn, real, real_dev) -> str:
     rows = {}
-    for v in ["B0"] + TEXT_VERSIONS:
+    for v in ["B0", "I8"] + TEXT_VERSIONS:
         r = {}
         for name, df in (("syn", syn), ("real", real), ("dev", real_dev)):
             d = df[df.version == v]
             if not len(d):
                 continue
             r[f"{name}_all"] = d.JF.mean()
-            if v != "B0" and name != "dev" and "grounding_hit" in d:
+            if v not in ("B0", "I8") and name != "dev" and "grounding_hit" in d:
                 r[f"{name}_hit"] = d[d.grounding_hit == 1].JF.mean()
-        rows[v + (" (click)" if v == "B0" else " (text)")] = r
+        rows[v + (" (click)" if v in ("B0", "I8") else " (text)")] = r
     return table(pd.DataFrame(rows).T, {"syn_all": "Synthetic J&F", "syn_hit": "…grounding right only",
                                         "real_all": "Real J&F", "real_hit": "…grounding right only",
                                         "dev_all": "Real dev J&F"})
@@ -86,6 +86,11 @@ def main(argv=None):
 
     syn, real = read("results/results.csv"), read("results/real_results.csv")
     real_dev = read("results/real_dev_results.csv")
+    if not (real_dev.version == "B0").any():  # B0 on real dev = the hiera-large run of the I6 sweep (same settings)
+        tuning = read("results/tuning.csv")
+        b0 = tuning[(tuning.version == "B0_hf_model-sam2.1-hiera-large")
+                    & tuning["clip"].str.startswith("rdev_")].assign(version="B0")
+        real_dev = pd.concat([real_dev, b0], ignore_index=True)
     fill, dev = read("results/fill_results.csv"), read("results/grounding_dev.csv")
     check = read("results/metric_check.csv")
 

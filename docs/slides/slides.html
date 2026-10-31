@@ -340,6 +340,29 @@
   <div class="foot"><span>Every number: results/results.csv &middot; docs/experiment_log.md</span><span>10</span></div>
 </section>
 
+<!-- 10b. Scorecard -->
+<section class="slide">
+  <div class="kicker">The results in plain words</div>
+  <h1>Five numbers anyone can read</h1>
+  <table style="font-size:19px">
+    <tr><th>Version</th><th class="n">Mask accuracy</th><th class="n">Fill score</th><th class="n">Steadiness</th><th class="n">Speed</th></tr>
+    <tr><td>Baseline: click, OpenCV fill</td><td class="n">94%</td><td class="n">24/100</td><td class="n">2.8&times;</td><td class="n">1.4 s/frame</td></tr>
+    <tr><td>Our flow-guided fill (I3b)</td><td class="n">94%</td><td class="n">26/100</td><td class="n">2.5&times;</td><td class="n">1.5 s/frame</td></tr>
+    <tr class="hl"><td>ProPainter fill (I4)</td><td class="n">94%</td><td class="n">63/100</td><td class="n">1.1&times;</td><td class="n">5.4 s/frame</td></tr>
+    <tr><td class="quiet">ProPainter with a perfect mask</td><td class="n quiet">100%</td><td class="n quiet">68/100</td><td class="n quiet">1.0&times;</td><td class="n quiet">&ndash;</td></tr>
+  </table>
+  <table style="font-size:19px; margin-top:18px">
+    <tr><th>Real videos (10 clips)</th><th class="n">Right object</th><th class="n">Mask accuracy</th></tr>
+    <tr><td>Click, whole object (I8)</td><td class="n">clicked</td><td class="n">86%</td></tr>
+    <tr><td>Text, asks &ldquo;which one?&rdquo; if unsure (I2c)</td><td class="n">7/10</td><td class="n">67%</td></tr>
+  </table>
+  <div class="row" style="gap:30px; margin-top:18px">
+    <div class="col"><p class="small"><b>Mask accuracy</b>: overlap with the true object (J&amp;F).<br><b>Fill score</b>: 0 = object still there, 100 = identical to the real background (from LPIPS).</p></div>
+    <div class="col"><p class="small"><b>Steadiness</b>: flicker vs. the real video; 1.0&times; = as steady as real footage.<br><b>Speed</b>: on a MacBook (M5). Top table: pasted benchmark, 10 clips (the true background is known).</p></div>
+  </div>
+  <div class="foot"><span>python -m src.scorecard &middot; results/scorecard.md</span><span>11</span></div>
+</section>
+
 <!-- 11. Real videos -->
 <section class="slide">
   <div class="kicker">Real videos: text prompt &rarr; SAM 2 &rarr; ProPainter</div>
@@ -356,7 +379,7 @@
     <figure class="col"><img src="img/bear_before.jpg"><figcaption>&ldquo;remove the bear&rdquo;</figcaption></figure>
     <figure class="col"><img src="img/bear_after.jpg"><figcaption><span class="tag bad">smudge</span>: camera follows the bear</figcaption></figure>
   </div>
-  <div class="foot"><span>DAVIS clips not used in the benchmark</span><span>11</span></div>
+  <div class="foot"><span>DAVIS clips not used in the benchmark</span><span>12</span></div>
 </section>
 
 <!-- 12. Real test set: grounding -->
@@ -379,7 +402,7 @@
       <p class="small">When grounding is right, tracking real video is fine: J&amp;F 0.91.</p>
     </div>
   </div>
-  <div class="foot"><span>Benchmark: a simulated user clicks the true object &middot; results/real_results.csv</span><span>12</span></div>
+  <div class="foot"><span>Benchmark: a simulated user clicks the true object &middot; results/real_results.csv</span><span>13</span></div>
 </section>
 
 <!-- 13. I5 -->
@@ -403,9 +426,33 @@
       <p class="small" style="margin-top:12px">Decision: rejected. The detector is the less reliable signal, so it must not override the tracker.</p>
     </div>
   </div>
-  <div class="foot"><span>results/real_dev_results.csv &middot; real_results.csv &middot; I5b rejected on dev, so never run on test</span><span>13</span></div>
+  <div class="foot"><span>results/real_dev_results.csv &middot; real_results.csv &middot; I5b rejected on dev, so never run on test</span><span>14</span></div>
 </section>
 
+
+<!-- I8 -->
+<section class="slide">
+  <div class="kicker">Iterations I6, I8: tracking from a click</div>
+  <h1>One click is ambiguous: the glasses, or the man?</h1>
+  <div class="row" style="gap:14px">
+    <figure class="col"><img src="img/click_B0.jpg"><figcaption><b>B0</b>: SAM 2 keeps the mask it is most sure of: the sunglasses</figcaption></figure>
+    <figure class="col"><img src="img/click_I8.jpg"><figcaption><b>I8</b>: keep the largest of SAM 2's three masks: the whole man</figcaption></figure>
+  </div>
+  <div class="row" style="gap:36px; margin-top:16px">
+    <div class="col">
+      <table style="font-size:17px">
+        <tr><th>Mask accuracy (J&amp;F)</th><th class="n">Real dev</th><th class="n">Real test</th><th class="n">Pasted</th></tr>
+        <tr><td>B0</td><td class="n">0.791</td><td class="n">0.798</td><td class="n">0.943</td></tr>
+        <tr class="hl"><td><span class="tag good">I8</span> largest mask</td><td class="n">0.903</td><td class="n">0.858</td><td class="n">0.941</td></tr>
+      </table>
+    </div>
+    <div class="col">
+      <p class="small"><b>Fixed</b> 4 part-vs-whole clips (e.g. 0.08 &rarr; 0.90). <b>Broke</b> 2 where DAVIS labels only part of the thing (a rider without his bike): for removal, the whole is usually what you want.</p>
+      <p class="small"><span class="tag bad">I6</span> A smaller SAM 2 was &le; 1.7&times; faster but lost up to 0.19 J&amp;F on dev: rejected.</p>
+    </div>
+  </div>
+  <div class="foot"><span>Rule chosen on dev frame 0 &middot; demo now uses I8 for clicks</span><span>15</span></div>
+</section>
 
 <!-- 14. Stage-by-stage -->
 <section class="slide">
@@ -425,7 +472,7 @@
     <div class="col"><p><b>What the split tells us.</b> On real video, text versions lose J&amp;F 0.91 &rarr; 0.67 to grounding but almost nothing to tracking; ProPainter's fill is already as steady as the real video. The next gains are in <i>what</i> to remove, not how to track or fill.</p></div>
     <div class="col"><p class="small">How: <code>--overlay configs/fill_only.yaml</code> swaps SAM 2 for the true masks; <code>python -m src.stage_report</code> builds the four tables from the result CSVs (results/stage_report.md). Fill ranking is the same with true masks as end to end, so earlier fill comparisons were fair.</p></div>
   </div>
-  <div class="foot"><span>results/stage_report.md &middot; fill_results.csv &middot; real_results.csv</span><span>14</span></div>
+  <div class="foot"><span>results/stage_report.md &middot; fill_results.csv &middot; real_results.csv</span><span>16</span></div>
 </section>
 
 
@@ -455,7 +502,7 @@
       </ul>
     </div>
   </div>
-  <div class="foot"><span>python -m src.metric_check &middot; results/metric_check.csv, metric_agreement.csv</span><span>15</span></div>
+  <div class="foot"><span>python -m src.metric_check &middot; results/metric_check.csv, metric_agreement.csv</span><span>17</span></div>
 </section>
 
 <!-- 16. Iteration record -->
@@ -474,9 +521,11 @@
     <tr><td>I2c</td><td>Ask &ldquo;which one?&rdquo; when unsure</td><td>grounding</td><td>dev &rarr; real test</td><td>5/10 &rarr; 7/10 &middot; J&amp;F 0.48 &rarr; 0.67</td><td><span class="tag good">kept</span></td></tr>
     <tr><td>I5</td><td>Re-detect every 10 frames</td><td>tracking</td><td>real test</td><td>J&amp;F 0.674 &rarr; 0.600</td><td><span class="tag bad">rejected</span></td></tr>
     <tr><td>I5b</td><td>Confirm vs. all candidates</td><td>tracking</td><td>real dev</td><td>J&amp;F 0.912 &rarr; 0.866</td><td><span class="tag bad">rejected</span></td></tr>
+    <tr><td>I6</td><td>Smaller SAM 2 (speed)</td><td>tracking</td><td>real dev</td><td>&le; 1.7&times; faster &middot; J&amp;F 0.791 &rarr; &le; 0.710</td><td><span class="tag bad">rejected</span></td></tr>
+    <tr><td>I8</td><td>Click selects whole object</td><td>tracking</td><td>dev &rarr; real test</td><td>J&amp;F 0.798 &rarr; 0.858 (real)</td><td><span class="tag good">kept</span></td></tr>
   </table>
-  <p class="small" style="margin-top:8px">Settings are chosen on dev sets (DAVIS train), then run once on the test sets (DAVIS val). Each iteration has its own config, its own output folder and an entry in docs/experiment_log.md.</p>
-  <div class="foot"><span>Final system: I2c grounding &middot; SAM 2 &middot; ProPainter (or I3b when speed matters)</span><span>16</span></div>
+  <p class="small" style="margin-top:8px">Settings chosen on dev sets (DAVIS train), then run once on the test sets (DAVIS val). Every row: own config, own outputs, a log entry.</p>
+  <div class="foot"><span>Final system: I2c text or I8 click &middot; SAM 2 &middot; ProPainter (or I3b when speed matters)</span><span>18</span></div>
 </section>
 
 
@@ -499,13 +548,13 @@
       <h2>Next iterations</h2>
       <table>
         <tr><th>When</th><th>Iteration</th></tr>
-        <tr><td class="when">Nov 20</td><td><b>I6</b> speed: smaller SAM 2, faster fill (&lt; 1 s/frame)</td></tr>
+        <tr><td class="when">Nov 20</td><td>Let the user pick among SAM 2&rsquo;s masks for a click (like I2c); faster fill</td></tr>
         <tr><td class="when">Dec 6</td><td><b>I7</b> multiple objects (&ldquo;the player and the racket&rdquo;), shadows; failure study</td></tr>
         <tr><td class="when">Dec 10</td><td>Final report from the experiment log</td></tr>
       </table>
     </div>
   </div>
-  <div class="foot"><span>Proposal Oct 9 &middot; Midterm Nov 20 &middot; Project Day Dec 6 &middot; Final Dec 10</span><span>17</span></div>
+  <div class="foot"><span>Proposal Oct 9 &middot; Midterm Nov 20 &middot; Project Day Dec 6 &middot; Final Dec 10</span><span>19</span></div>
 </section>
 
 <!-- 18. Demo -->
@@ -517,7 +566,7 @@
     <figure><img src="img/end_before.jpg"><figcaption>Input</figcaption></figure>
     <figure><img src="img/end_after.jpg"><figcaption>&ldquo;remove the person&rdquo;</figcaption></figure>
   </div>
-  <div class="foot"><span>Questions?</span><span>18</span></div>
+  <div class="foot"><span>Questions?</span><span>20</span></div>
 </section>
 
 </body>

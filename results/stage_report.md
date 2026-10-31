@@ -20,7 +20,8 @@ B0 starts from a correct click, so its J&F is the tracker on its own. For text v
 
 | Version | Synthetic J&F | …grounding right only | Real J&F | …grounding right only | Real dev J&F |
 |---|---|---|---|---|---|
-| B0 (click) | 0.943 | – | 0.798 | – | – |
+| B0 (click) | 0.943 | – | 0.798 | – | 0.791 |
+| I8 (click) | 0.941 | – | 0.858 | – | 0.903 |
 | I2 (text) | 0.890 | 0.976 | 0.482 | 0.874 | – |
 | I2b (text) | 0.681 | 0.976 | 0.483 | 0.879 | – |
 | I2c (text) | 0.890 | 0.976 | 0.674 | 0.906 | 0.912 |

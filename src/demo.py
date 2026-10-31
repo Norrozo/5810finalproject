@@ -29,6 +29,7 @@ METHODS = {
     "OpenCV Telea (baseline)": "configs/B0.yaml",
 }
 GROUNDING_CONFIG = "configs/I2c.yaml"  # text prompts; asks "which one?" when ambiguous
+CLICK_CONFIG = "configs/I8.yaml"       # clicks select the whole object, not a part
 EXAMPLES_DIR = Path("showcase")  # pre-rendered before/after videos (git-ignored), shown instantly in the demo
 
 
@@ -41,6 +42,7 @@ def demo_config(method: str, use_text: bool) -> dict:
         cfg["grounding"] = load_config(GROUNDING_CONFIG)["grounding"]
     else:
         cfg.pop("grounding", None)
+        cfg["segmentation"]["click_mask"] = load_config(CLICK_CONFIG)["segmentation"]["click_mask"]
     return cfg
 
 

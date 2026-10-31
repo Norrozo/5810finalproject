@@ -315,3 +315,19 @@ Template:
   - **Steadiness**: flicker relative to the real video (RAFT flicker / clean-video RAFT flicker; 1.0× = as steady as real footage).
   - **Speed**: seconds per frame on the M5 MacBook.
 - Reading the current results this way: baseline fill 24/100 and 2.8× the real video's flicker; ProPainter 63/100 and 1.1×; with perfect masks ProPainter reaches 68/100 and 1.0×. On real videos, mask accuracy is 80% with a click and 67% with text (I2c).
+
+## 2026-10-31: I8, a click selects the whole object
+
+- Change: from one click SAM 2 predicts three candidate masks (roughly part / larger part / whole object) and B0 keeps the one it is most confident about, which is often a part. I8 keeps the **largest** candidate (`segmentation.click_mask: largest`, `whole_object_mask` in `src/segment.py`) and starts tracking from that mask. One change vs B0.
+- Rule chosen on dev frame 0 (real dev + synthetic dev, 19 clips, IoU with the true mask): most-confident 0.757 → largest 0.879 on real dev, best-possible 0.914; synthetic dev 0.972 for every rule.
+- Commands: `python -m src.run_pipeline --config configs/I8.yaml` with `--overlay configs/real_dev_set.yaml`, then `--overlay configs/real_set.yaml`, then no overlay.
+
+| J&F | Real dev (14) | Real test (10) | Synthetic test (10) |
+|---|---|---|---|
+| B0 (most confident mask) | 0.791 | 0.798 | 0.943 |
+| **I8 (largest mask)** | **0.903** | **0.858** | 0.941 |
+
+- Fixed: boxing 0.12 → 0.95, upside-down 0.08 → 0.90 (dev); mbike-trick 0.24 → 0.92, soapbox 0.31 → 0.74 (test), the part-vs-whole failures noted for B0 on 2026-10-29.
+- Broke: shooting 0.89 → 0.39 (test) and bmx-bumps 0.53 → 0.45 (dev). In both, DAVIS's object 1 is *less* than the whole thing: on shooting it covers only part of the man, on bmx-bumps the rider without the bike. I8 selects the whole man / rider + bike. For removal that is arguably what a user wants, but the metric counts it as wrong. Click ambiguity cannot be fully solved by a fixed rule; the demo could show the three masks and let the user pick (as I2c does for boxes).
+- Synthetic test unchanged (pasted objects are whole by construction). Fill metrics within noise (PSNR mask 16.39 → 16.34).
+- Decision: **kept** for click prompts; the demo now uses it.

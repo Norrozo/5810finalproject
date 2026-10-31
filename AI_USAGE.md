@@ -87,3 +87,15 @@ The course requires a summary of how we used generative AI tools and what, if an
     - What we changed ourselves: [none / describe]
 
 ---
+
+## 2026-10-31: I6 sweep, I8 (whole-object click), plain-language scorecard
+
+- **Tool:** Claude Code (Anthropic), Opus 5.5
+- **What it did:** Ran the SAM 2 model-size sweep (I6, rejected; `src/sweep.py` now names model-id versions by their last path part); diagnosed the click part-vs-whole failures and implemented I8 (`whole_object_mask` in `src/segment.py`, `configs/I8.yaml`), chose the rule on dev frame 0, ran it on real dev, real test and synthetic test; switched the demo's click mode to I8 (`src/demo.py`); wrote `src/scorecard.py` (`results/scorecard.md`); added I8/B0 to `src/stage_report.py`; added the scorecard and I8 slides and updated the iteration slide; wrote the log entries.
+- **Copied directly:** the code, configs, slides and log text above. All numbers come from running the scripts.
+- **Our review / changes:** _TO FILL IN by the team (only what you actually did):_
+    - Reviewed by: [name(s)], files: [e.g. src/scorecard.py, src/segment.py]
+    - What we checked by running it / reading it: [e.g. tried a click in the demo]
+    - What we changed ourselves: [none / describe]
+
+---
