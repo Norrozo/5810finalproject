@@ -290,3 +290,28 @@ Template:
 - I5b removed most false corrections (crossing 0.364 → 0.948, lindy-hop, schoolgirls) but is still below no re-detection. All 4 remaining corrections were false alarms: the track was right (IoU with the true mask 0.93–0.95), but the detector did not find the object on that keyframe at all, so the track matched nothing and was moved to another object (dancing 0.938 → 0.640, upside-down 0.901 → 0.580).
 - Over 24 real clips (dev + test) re-detection made **no** correct correction. SAM 2's memory never lost the object on these clips, while the detector misses objects in single frames (unusual poses, upside-down). The detector is the less reliable signal, so it should not override the tracker.
 - Decision: **re-detection rejected** (I5 and I5b kept as configs for reproducibility). I5b is not run on the test set: it was rejected on dev. The final system keeps I2c grounding + SAM 2 tracking. Re-detection would only make sense for objects that really leave the frame, which our clips do not test.
+
+## 2026-10-31: I6 speed: smaller SAM 2 models (dev only); rejected
+
+- Question: SAM 2 is 97% of B0's runtime. Can a smaller SAM 2.1 model keep tracking quality?
+- Command (real dev, click prompts so grounding is out of the picture): `python -m src.sweep --config configs/B0.yaml --key segmentation.hf_model --segmentation sam2 --clips-file configs/real_dev_clips.txt --values facebook/sam2.1-hiera-tiny facebook/sam2.1-hiera-small facebook/sam2.1-hiera-base-plus facebook/sam2.1-hiera-large` (results in `results/tuning.csv`; sweep.py now names model-id versions by their last path part).
+
+| SAM 2.1 model | Real dev J&F | Segment s/frame (M5, MPS) |
+|---|---|---|
+| hiera-tiny | 0.708 | 0.70 |
+| hiera-small | 0.710 | 0.76 |
+| hiera-base-plus | 0.604 | 0.98 |
+| hiera-large (B0) | **0.791** | 1.18 |
+
+- Smaller models are at most 1.7× faster on this Mac and lose 0.08–0.19 J&F, with whole-clip failures from the same click (kid-football: large 0.99, small 0.02; hockey and skate-park: base-plus 0.30/0.34). Not worth it: **keep hiera-large**. Speed is not run on the test set, since no candidate passed dev.
+- Side finding that drives I8: with the large model, the click prompt still loses badly on some clips where the text box works (boxing 0.12 vs 0.95, upside-down 0.08 vs 0.90). The click lands on the object, but SAM 2 segments only a part of it (12% of the boxer, 12% of the upside-down person).
+
+## 2026-10-31: Plain-language scorecard
+
+- Why: the raw metrics (J&F, LPIPS, RAFT flicker) are exact but hard to read for anyone outside the project. `python -m src.scorecard` writes `results/scorecard.md`, which turns them into five everyday numbers. Nothing new is measured; all numbers come from the result CSVs.
+  - **Right object**: clips where the text prompt picked the right thing (grounding hits, e.g. 7/10).
+  - **Mask accuracy**: overlap with the true object in % (J&F × 100).
+  - **Fill score** (0–100): 0 = object still there, 100 = identical to the real background. Per clip: 100 × (1 − LPIPS of the fill / LPIPS of leaving the object in), using the "not removed" case from `src/metric_check.py`.
+  - **Steadiness**: flicker relative to the real video (RAFT flicker / clean-video RAFT flicker; 1.0× = as steady as real footage).
+  - **Speed**: seconds per frame on the M5 MacBook.
+- Reading the current results this way: baseline fill 24/100 and 2.8× the real video's flicker; ProPainter 63/100 and 1.1×; with perfect masks ProPainter reaches 68/100 and 1.0×. On real videos, mask accuracy is 80% with a click and 67% with text (I2c).

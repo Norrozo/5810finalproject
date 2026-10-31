@@ -101,6 +101,7 @@ src/
   evaluate.py       all metrics
   metrics_deep.py   LPIPS, RAFT flicker
   stage_report.py   per-stage evaluation report
+  scorecard.py      plain-language scorecard (results/scorecard.md)
   metric_check.py   metric sanity checks on known cases
   visualize.py      side-by-side videos and stills
   run_pipeline.py   runs all stages for one config

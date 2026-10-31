@@ -108,6 +108,8 @@ python -m src.summarize --csv results/real_results.csv
 
 **Learned metrics.** `LPIPS mask` (perceptual distance on a crop around the object; PSNR rewards blur) and `Flicker RAFT` (flicker aligned with RAFT flow, independent of the Farneback flow our own method uses) are computed by `src/metrics_deep.py`. RAFT flow of each clean clip is cached in `data/<clip>/raft_flow.npy`.
 
+**Plain-language scorecard.** `python -m src.scorecard` writes `results/scorecard.md`: per version, *right object* (x/10), *mask accuracy* (%), *fill score* (0 = object still there, 100 = identical to the real background), *steadiness* (flicker vs. the real video, 1.0× = as steady) and *speed* (s/frame). Start there; the raw metrics below are what it is computed from.
+
 **Each stage is also scored on its own.** End-to-end numbers mix stages: one wrong grounding box makes every metric bad, even if tracking and filling worked. So:
 
 ```bash
@@ -162,6 +164,7 @@ src/
   metrics_deep.py     LPIPS mask, RAFT flicker
   metric_check.py     metric sanity checks on known cases
   stage_report.py     per-stage evaluation → results/stage_report.md
+  scorecard.py        plain-language summary → results/scorecard.md
   visualize.py        side_by_side.mp4 + stills.png per clip
   run_pipeline.py     runs all stages
   summarize.py        per-version Markdown table for reports

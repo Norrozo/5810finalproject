@@ -1,0 +1,32 @@
+# I8: B0 + one click selects the WHOLE object. SAM 2 returns three candidate masks for a
+# click (part / larger part / whole); B0 keeps its most confident one, often a part. I8 keeps
+# the largest and tracks from it. Rule chosen on dev frame 0 (real dev IoU 0.757 -> 0.879,
+# synthetic dev unchanged). Else identical to B0.
+version: I8
+
+data_root: data
+runs_root: runs
+results_csv: results/results.csv
+eval_clips: configs/eval_clips.txt
+
+# Clip limits (keep small for Colab's free GPU)
+max_frames: 60
+max_height: 480
+
+segmentation:
+  method: sam2              # sam2 | oracle (oracle copies ground-truth masks; for debugging/ablations)
+  hf_model: facebook/sam2.1-hiera-large
+  offload_video_to_cpu: true
+  click_mask: largest       # I8 (B0: SAM 2's most confident of its three masks)
+
+refine:
+  threshold: 127            # B0 only binarizes. No dilation or hole filling yet.
+
+inpaint:
+  method: opencv            # opencv | flow_guided (I3) | propainter (I4)
+  opencv_method: telea      # telea | ns
+  radius: 5
+
+evaluation:
+  boundary_tolerance: 0.008 # fraction of image diagonal, as in DAVIS
+  region_dilation: 5        # px added around the GT mask when scoring the filled region

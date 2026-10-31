@@ -7,6 +7,8 @@ Each value gets its own version folder: runs/<version>_<key>-<value>/.
 Usage:
     python -m src.make_synthetic --config configs/I3.yaml --davis-root DAVIS --clips-file configs/dev_clips.txt
     python -m src.sweep --config configs/I3.yaml --key inpaint.max_hops --values 1 2 3 5 8 none
+    python -m src.sweep --config configs/B0.yaml --key segmentation.hf_model --segmentation sam2 \
+        --clips-file configs/real_dev_clips.txt --values facebook/sam2.1-hiera-tiny facebook/sam2.1-hiera-large
 """
 from __future__ import annotations
 
@@ -44,7 +46,8 @@ def main(argv=None):
         node[leaf] = parse_value(raw)
         cfg["segmentation"]["method"] = args.segmentation
         cfg["segmentation"].pop("reuse_from", None)
-        cfg.update(version=f"{base['version']}_{leaf}-{raw}", eval_clips=args.clips_file,
+        tag = raw.rsplit("/", 1)[-1]  # model ids like facebook/sam2.1-hiera-tiny -> folder-safe
+        cfg.update(version=f"{base['version']}_{leaf}-{tag}", eval_clips=args.clips_file,
                    results_csv="results/tuning.csv")
         cfg.pop("_config_path", None)
         path = f"runs/{cfg['version']}.yaml"

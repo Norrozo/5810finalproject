@@ -58,6 +58,24 @@ def resolve_prompt(paths: dict, click: list[int] | None = None, use_box: bool = 
 
 # ---------------------------------------------------------------- methods
 
+def whole_object_mask(predictor, frame: Path, prompt: dict) -> np.ndarray:
+    """I8: one click is ambiguous (a shirt, the person, or the person and their bike?).
+    SAM 2 answers with three candidate masks, roughly part / larger part / whole object,
+    and by default keeps the one it is most confident about, which is often a part
+    (real dev: a boxer's helmet, an upside-down person's legs). Here we keep the LARGEST
+    candidate, i.e. the whole object, and start tracking from that mask instead of the click.
+    Uses the video model's own weights through SAM 2's single-image interface.
+    """
+    from sam2.sam2_image_predictor import SAM2ImagePredictor
+    image_predictor = SAM2ImagePredictor(predictor)
+    image_predictor.set_image(cv2.cvtColor(read_image(frame), cv2.COLOR_BGR2RGB))
+    candidates, _scores, _ = image_predictor.predict(
+        point_coords=np.array(prompt["points"], dtype=np.float32),
+        point_labels=np.array(prompt["labels"], dtype=np.int32), multimask_output=True)
+    candidates = candidates > 0
+    return candidates[int(np.argmax(candidates.sum(axis=(1, 2))))]
+
+
 def segment_sam2(cfg: dict, frames: list[Path], prompts: list[dict]) -> list[np.ndarray]:
     """Track one object with SAM 2 and return a boolean mask per frame.
 
@@ -97,6 +115,9 @@ def segment_sam2(cfg: dict, frames: list[Path], prompts: list[dict]) -> list[np.
                     predictor.add_new_points_or_box(
                         inference_state=state, frame_idx=p["frame"], obj_id=1,
                         box=np.array(p["box"], dtype=np.float32))
+                elif seg_cfg.get("click_mask") == "largest":
+                    predictor.add_new_mask(inference_state=state, frame_idx=p["frame"], obj_id=1,
+                                           mask=whole_object_mask(predictor, frames[p["frame"]], p))
                 else:
                     predictor.add_new_points_or_box(
                         inference_state=state, frame_idx=p["frame"], obj_id=1,
