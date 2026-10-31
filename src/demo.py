@@ -119,7 +119,7 @@ def run_removal(name: str | None, text: str, click: list[int] | None, method: st
         for sub in ("masks", "masks_refined", "inpainted"):
             shutil.rmtree(paths[sub], ignore_errors=True)
         paths["boxes"].write_text(json.dumps(res, indent=2))
-        note = f"Removing the '{text}' you picked (#{res['user_choice'] + 1}). "
+        note = f"Removing the {grounding.clean_prompt(text).rstrip('.')} you picked (#{res['user_choice'] + 1}). "
     elif text:
         shutil.rmtree(paths["run"], ignore_errors=True)  # fresh outputs every run
         res = grounding.run(cfg, name, text=text, overwrite=True)
@@ -130,7 +130,7 @@ def run_removal(name: str | None, text: str, click: list[int] | None, method: st
             msg = (f"**{len(res['choices'])} things match '{text}'.** Click the one to remove "
                    "on the image at the left, then press **Remove it** again.")
             return None, None, None, msg, draw_choices(name, res["choices"]), res["choices"], None
-        note = f"Found '{text}' (confidence {res['score']:.2f}). "
+        note = f"Found the {grounding.clean_prompt(text).rstrip('.')} (confidence {res['score']:.2f}). "
     else:
         shutil.rmtree(paths["run"], ignore_errors=True)
     segment.run(cfg, name, click=None if text else click, overwrite=True)
