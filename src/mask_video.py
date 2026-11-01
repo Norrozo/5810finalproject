@@ -1,8 +1,8 @@
 """A short presentation video of what our iterations changed in the MASKS.
 
-For a few clips, plays the true mask (green) next to two versions' masks (red), with each
-panel's J&F for that clip read from the results CSVs. A title card before each clip says
-what failed and what fixed it. Only existing run outputs are used; nothing is re-run.
+All clips play at once, one row per clip: the true mask (green) next to two versions' masks
+(red), each labelled with its J&F for that clip from the results CSVs. Only existing run
+outputs are used; nothing is re-run.
 
     python -m src.mask_video                     # writes runs/mask_story.mp4 (videos are not committed)
 """
@@ -18,25 +18,15 @@ import pandas as pd
 from src.utils import list_frames, read_image, read_mask
 from src.visualize import write_video
 
-# (title, explanation, clip, results csv, [(version, label), ...])
+# (clip, results csv, versions shown next to the true mask); one row each in the video
 STORY = [
-    ("1. A click is ambiguous: part or whole?",
-     "B0 keeps SAM 2's most confident mask: often a part (the helmet).\nI8 keeps the largest of its 3 masks: the whole rider.",
-     "real_mbike-trick", "results/real_results.csv", [("B0", "B0 click"), ("I8", "I8 click")]),
-    ("2. Text prompts pick the wrong look-alike",
-     "'man in black jacket': the detector's top box is the other man.\nI2c sees two close scores and asks which one.",
-     "real_loading", "results/real_results.csv", [("I2", "I2 text"), ("I2c", "I2c asks")]),
-    ("3. Still unsolved: confidently wrong text",
-     "'woman in white': one confident wrong box, so I2c does not ask.\nA click still gets it right.",
-     "real_india", "results/real_results.csv", [("I2c", "I2c text"), ("I8", "I8 click")]),
-    ("4. Several objects: 'remove the pigs'",
-     "Before, only the top box was kept: one pig.\nI7 keeps every box above 0.45 and tracks each.",
-     "multi_pigs", "results/multi_results.csv", [("I2c", "I2c (one)"), ("I7", "I7 (all)")]),
-    ("5. Several objects in a crowd: 'women'",
-     "I7 finds all 3 named women among an unlabelled crowd.",
-     "multi_india", "results/multi_results.csv", [("I2c", "I2c (one)"), ("I7", "I7 (all)")]),
+    ("real_mbike-trick", "results/real_results.csv", ["B0", "I8"]),    # click: part vs whole
+    ("real_loading", "results/real_results.csv", ["I2", "I2c"]),       # text: wrong look-alike, then ask
+    ("real_india", "results/real_results.csv", ["I2c", "I8"]),         # text confidently wrong vs click
+    ("multi_pigs", "results/multi_results.csv", ["I2c", "I7"]),        # "pigs": one vs all
+    ("multi_india", "results/multi_results.csv", ["I2c", "I7"]),       # "women": one vs all
 ]
-H = 300  # panel height
+H = 216  # panel height (5 rows = 1080 px)
 
 
 def overlay(img, mask, color):
@@ -48,49 +38,43 @@ def overlay(img, mask, color):
 
 
 def label(panel, text):
-    cv2.rectangle(panel, (0, 0), (panel.shape[1], 36), (0, 0, 0), -1)
-    cv2.putText(panel, text, (10, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 2)
+    cv2.rectangle(panel, (0, 0), (panel.shape[1], 28), (0, 0, 0), -1)
+    cv2.putText(panel, text, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     return panel
 
 
-def title_card(width, title, text):
-    card = np.full((H + 40, width, 3), 24, np.uint8)
-    cv2.putText(card, title, (40, 110), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2)
-    for i, line in enumerate(text.split("\n")):
-        cv2.putText(card, line, (40, 170 + 42 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.85, (200, 200, 200), 2)
-    cv2.putText(card, "green = true mask (DAVIS)   red = our mask   number = J&F for this clip",
-                (40, H + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (150, 150, 150), 1)
-    return card
-
-
-def section(clip, csv, versions, title, text, fps):
+def section(clip, csv, versions):
+    """One row per frame: true mask, then each version's mask, labelled with its J&F."""
     scores = pd.read_csv(csv).set_index(["version", "clip"]).JF
-    frames = list_frames(Path("data") / clip / "frames")
     rows = []
-    for f in frames:
+    for f in list_frames(Path("data") / clip / "frames"):
         img = read_image(f)
-        panels = [label(overlay(img, read_mask(Path("data") / clip / "gt_masks" / f.name), (0, 200, 0)), "True mask")]
-        for v, name in versions:
+        panels = [label(overlay(img, read_mask(Path("data") / clip / "gt_masks" / f.name), (0, 200, 0)), "True")]
+        for v in versions:
             m = read_mask(Path("runs") / v / clip / "masks" / f.name)
-            panels.append(label(overlay(img, m, (0, 0, 255)), f"{name}: J&F {scores[(v, clip)]:.2f}"))
-        row = np.hstack(panels)
-        rows.append(np.vstack([row, np.full((40, row.shape[1], 3), 24, np.uint8)]))
-    card = title_card(rows[0].shape[1], title, text)
-    return [card] * int(fps * 4) + rows
+            panels.append(label(overlay(img, m, (0, 0, 255)), f"{v}  J&F {scores[(v, clip)]:.2f}"))
+        rows.append(np.hstack(panels))
+    return rows
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default="configs/B0.yaml", help="unused; kept for the common CLI")
     ap.add_argument("--out", default="runs/mask_story.mp4")
-    ap.add_argument("--fps", type=int, default=10)
+    ap.add_argument("--fps", type=int, default=8)
+    ap.add_argument("--loops", type=int, default=3, help="play the clips this many times")
     args = ap.parse_args(argv)
-    sections = [section(clip, csv, versions, title, text, args.fps) for title, text, clip, csv, versions in STORY]
-    width = max(s[0].shape[1] for s in sections)
-    rows = [cv2.copyMakeBorder(r, 0, 0, 0, width - r.shape[1], cv2.BORDER_CONSTANT, value=(24, 24, 24))
-            for s in sections for r in s]
-    write_video(Path(args.out), rows, args.fps)
-    print(f"wrote {args.out}: {len(rows)} frames, {len(rows) / args.fps:.0f} s")
+    clips = [section(clip, csv, versions) for clip, csv, versions in STORY]
+    n = max(len(c) for c in clips)
+    width = max(c[0].shape[1] for c in clips)
+    frames = []
+    for t in range(n):  # all clips play at once, one per row; short clips hold their last frame
+        rows = [c[min(t, len(c) - 1)] for c in clips]
+        rows = [cv2.copyMakeBorder(r, 0, 2, 0, width - r.shape[1], cv2.BORDER_CONSTANT, value=(0, 0, 0)) for r in rows]
+        frames.append(np.vstack(rows))
+    frames = frames * args.loops
+    write_video(Path(args.out), frames, args.fps)
+    print(f"wrote {args.out}: {len(frames)} frames, {len(frames) / args.fps:.0f} s")
 
 
 if __name__ == "__main__":
