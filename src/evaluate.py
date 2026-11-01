@@ -15,6 +15,9 @@ Metrics (synthetic benchmark clips, which have ground truth):
                  (skipped when evaluation.deep_metrics is false)
   grounding_iou  IoU of the text-prompt box with the GT mask's bounding box on frame 0 (I2+)
   grounding_hit  1 if grounding_iou > 0.5 (the standard detection threshold), else 0
+  n_objects, objects_found, objects_extra   multi-object clips (I7) only: of the n_objects
+                 named by the prompt, how many got a box (IoU > 0.5), and how many boxes
+                 matched none of them (something else removed). grounding_hit = all found.
 Runtime (all clips, including custom videos without GT):
   spf_<stage> seconds per frame for each stage, plus spf_total
 
@@ -47,7 +50,7 @@ from src.utils import clip_paths, list_frames, load_config, read_clip_list, read
 
 COLUMNS = ["version", "clip", "n_frames", "J", "F", "JF", "psnr", "psnr_mask", "ssim",
            "flicker", "flicker_ref", "lpips_mask", "flicker_raft", "flicker_raft_ref",
-           "grounding_iou", "grounding_hit",
+           "grounding_iou", "grounding_hit", "n_objects", "objects_found", "objects_extra",
            "spf_ground", "spf_segment", "spf_refine", "spf_inpaint", "spf_total", "timestamp"]
 PSNR_CAP = 100.0  # identical images give infinite PSNR; cap so averages stay finite
 
@@ -90,6 +93,14 @@ def box_iou(a: list[float], b: list[float]) -> float:
     inter = ix * iy
     union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
     return inter / union if union > 0 else 0.0
+
+
+def object_counts(chosen: list[list[float]], gt_boxes: list[list[float]]) -> dict:
+    """Multi-object grounding (I7): how many of the true objects got a box, and how many
+    chosen boxes match no true object. A match is box IoU > 0.5, as for grounding_hit."""
+    found = sum(any(box_iou(c, g) > 0.5 for c in chosen) for g in gt_boxes)
+    extra = sum(not any(box_iou(c, g) > 0.5 for g in gt_boxes) for c in chosen)
+    return {"n_objects": len(gt_boxes), "objects_found": found, "objects_extra": extra}
 
 
 # ---------------------------------------------------------------- image metrics
@@ -165,7 +176,13 @@ def evaluate_clip(cfg: dict, clip: str) -> dict:
     if not paths["gt_masks"].exists():
         return row  # custom video: runtime only
 
-    if paths["boxes"].exists():
+    gt_boxes_file = Path(cfg["data_root"]) / clip / "gt_boxes.json"
+    if paths["boxes"].exists() and gt_boxes_file.exists():  # multi-object clip (I7 sets)
+        found = json.loads(paths["boxes"].read_text())
+        chosen = found.get("boxes") or ([found["box"]] if found["box"] else [])
+        row.update(object_counts(chosen, json.loads(gt_boxes_file.read_text())))
+        row["grounding_hit"] = int(row["objects_found"] == row["n_objects"])
+    elif paths["boxes"].exists():
         box = json.loads(paths["boxes"].read_text())["box"]
         gt0 = read_mask(paths["gt_masks"] / frames[0].name)
         row["grounding_iou"] = box_iou(box, mask_to_box(gt0)) if box else 0.0

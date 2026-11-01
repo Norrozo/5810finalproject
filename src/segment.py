@@ -10,7 +10,7 @@ Prompt sources, in order of priority:
 B0 limitations (these are future iterations, not bugs):
   - one positive click on frame 0 only, no text prompt (I2)
   - no re-detection if the object leaves and comes back (I5)
-  - single object (I7)
+  - single object (I7 adds plural text prompts: one SAM 2 object per box, masks merged)
 
 Usage:
     python -m src.segment --config configs/B0.yaml --clip dog_on_soapbox
@@ -43,7 +43,10 @@ def auto_click_from_mask(mask: np.ndarray) -> list[int]:
 def resolve_prompt(paths: dict, click: list[int] | None = None, use_box: bool = False) -> dict:
     if use_box:
         boxes = json.loads(paths["boxes"].read_text())
-        return {"frame": 0, "box": boxes["box"], "source": f"text: {boxes['text']}"}
+        prompt = {"frame": 0, "box": boxes["box"], "source": f"text: {boxes['text']}"}
+        if boxes.get("multi"):  # I7: several objects, tracked separately, merged into one mask
+            prompt["boxes"] = boxes["boxes"]
+        return prompt
     if click is not None:
         points, source = [click], "cli"
     elif paths["prompt"].exists():
@@ -82,6 +85,8 @@ def segment_sam2(cfg: dict, frames: list[Path], prompts: list[dict]) -> list[np.
     `prompts` = one or more {"frame": k, "box": [x0, y0, x1, y1]} or
     {"frame": k, "points": [[x, y]], "labels": [1]}. B0/I2 pass one prompt on frame 0;
     I5 adds correction boxes on later frames, which SAM 2 treats as extra conditioning frames.
+    I7: {"frame": 0, "boxes": [...]} gives each box its own SAM 2 object id, so the
+    objects are tracked separately; the returned mask is their union.
     """
     import torch
     from sam2.sam2_video_predictor import SAM2VideoPredictor
@@ -111,7 +116,12 @@ def segment_sam2(cfg: dict, frames: list[Path], prompts: list[dict]) -> list[np.
             state = predictor.init_state(video_path=str(tmp),
                                          offload_video_to_cpu=seg_cfg.get("offload_video_to_cpu", True))
             for p in prompts:
-                if "box" in p:
+                if "boxes" in p:
+                    for obj_id, box in enumerate(p["boxes"], start=1):
+                        predictor.add_new_points_or_box(
+                            inference_state=state, frame_idx=p["frame"], obj_id=obj_id,
+                            box=np.array(box, dtype=np.float32))
+                elif "box" in p:
                     predictor.add_new_points_or_box(
                         inference_state=state, frame_idx=p["frame"], obj_id=1,
                         box=np.array(p["box"], dtype=np.float32))
@@ -125,7 +135,8 @@ def segment_sam2(cfg: dict, frames: list[Path], prompts: list[dict]) -> list[np.
                         labels=np.array(p["labels"], dtype=np.int32),
                     )
             for idx, _obj_ids, mask_logits in predictor.propagate_in_video(state):
-                masks[idx] = (mask_logits[0] > 0.0).squeeze().cpu().numpy()
+                # union over objects (one object before I7)
+                masks[idx] = (mask_logits > 0.0).any(dim=0).squeeze().cpu().numpy()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
         # Free the model before the next clip; otherwise memory builds up across clips

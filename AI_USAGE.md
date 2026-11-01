@@ -99,3 +99,15 @@ The course requires a summary of how we used generative AI tools and what, if an
     - What we changed ourselves: [none / describe]
 
 ---
+
+## 2026-11-01: I7 (multi-object prompts)
+
+- **Tool:** Claude Code (Anthropic), Opus 5.5
+- **What it did:** Chose the multi-object clip lists from DAVIS first-frame annotations (`configs/multi_clips.txt`, `configs/multi_dev_clips.txt`, overlays `multi_set.yaml`, `multi_dev_set.yaml`); let `src/make_real.py` take several object ids (union mask + `gt_boxes.json`); implemented I7 (`is_plural`, `select_all` in `src/grounding.py`; one SAM 2 object id per box in `src/segment.py`; `configs/I7.yaml`); added objects found / extra removed to `src/evaluate.py` and the scorecard; added a min_score sweep to `src/eval_grounding.py`; smoke tests; wrote `src/plot_metrics.py` (charts in `results/figures/`) and `docs/analysis.md`; made `docs/slides/img/mask_examples.jpg`; ran I2c and I7 on the multi dev and test sets; updated README, CLAUDE.md, experiment log.
+- **Copied directly:** the code, configs and log text above. All numbers come from running the scripts.
+- **Our review / changes:** _TO FILL IN by the team (only what you actually did):_
+    - Reviewed by: [name(s)], files: [e.g. src/grounding.py is_plural, configs/multi_clips.txt]
+    - What we checked by running it / reading it: [e.g. tried "remove the pigs" in the demo]
+    - What we changed ourselves: [none / describe]
+
+---

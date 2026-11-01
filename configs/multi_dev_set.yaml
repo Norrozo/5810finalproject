@@ -1,0 +1,6 @@
+# Overlay: MULTI-OBJECT dev clips (DAVIS train), for choosing I7's settings.
+#   python -m src.run_pipeline --config configs/I7.yaml --overlay configs/multi_dev_set.yaml
+eval_clips: configs/multi_dev_clips.txt
+results_csv: results/multi_dev_results.csv
+grounding:
+  prompts_file: configs/multi_dev_clips.txt

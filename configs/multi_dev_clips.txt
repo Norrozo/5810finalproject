@@ -1,0 +1,10 @@
+# MULTI-OBJECT dev set (I7): DAVIS 2017 *train* videos, no overlap with the test set.
+# Used to choose I7's settings. Ground truth = union of the listed objects.
+# name              davis_clip      object_ids        prompt
+mdev_crossing       crossing        1,2               people
+mdev_dancing        dancing         1,2,3             dancers
+mdev_dog-gooses     dog-gooses      2,3,4,5           geese
+mdev_boxing         boxing-fisheye  1,2               boxers
+mdev_walking        walking         1,2               people
+mdev_lindy-hop      lindy-hop       1,2,3,4,5,6,7,8   people
+mdev_drone          drone           3,5               men

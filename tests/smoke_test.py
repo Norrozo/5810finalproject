@@ -94,6 +94,18 @@ def test_ambiguity():
     assert simulated_choice(close, gt) == 1, "simulated user must pick the box on the true object"
 
 
+def test_multi():
+    from src.evaluate import object_counts
+    from src.grounding import is_plural, select_all
+    assert is_plural("remove the pigs") and is_plural("all the goldfish") and is_plural("people in white")
+    assert not is_plural("man with sunglasses") and not is_plural("woman in pink dress") and not is_plural("dog")
+    dets = [{"box": [0, 0, 10, 10], "score": 0.8}, {"box": [1, 0, 11, 10], "score": 0.7},  # same object twice
+            {"box": [50, 50, 60, 60], "score": 0.5}, {"box": [80, 80, 90, 90], "score": 0.1}]  # too weak
+    assert [d["box"] for d in select_all(dets, {"min_score": 0.3})] == [[0, 0, 10, 10], [50, 50, 60, 60]]
+    counts = object_counts([[0, 0, 10, 10], [80, 0, 90, 10]], [[0, 0, 10, 10], [50, 50, 60, 60]])
+    assert counts == {"n_objects": 2, "objects_found": 1, "objects_extra": 1}, counts
+
+
 def test_prompts():
     assert clean_prompt("Remove the dog!") == "dog."
     assert clean_prompt("please erase all people") == "people."
@@ -105,6 +117,7 @@ def main():
     test_prompts()
     test_redetect()
     test_ambiguity()
+    test_multi()
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         make_fake_davis(tmp / "DAVIS")

@@ -74,7 +74,9 @@ def read_clip_list(path: str | Path) -> list[dict]:
         parts = line.split()
         entry = {"name": parts[0]}
         if len(parts) >= 4:
-            entry.update(object_clip=parts[1], object_id=int(parts[2]), background_clip=parts[3])
+            # object_id may be a list ("1,2,3") in the multi-object sets (I7); kept as text there
+            obj = int(parts[2]) if parts[2].isdigit() else parts[2]
+            entry.update(object_clip=parts[1], object_id=obj, background_clip=parts[3])
         clips.append(entry)
     return clips
 

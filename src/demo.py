@@ -28,7 +28,8 @@ METHODS = {
     "ProPainter (best, ~2 min)": "configs/I4.yaml",
     "OpenCV Telea (baseline)": "configs/B0.yaml",
 }
-GROUNDING_CONFIG = "configs/I2c.yaml"  # text prompts; asks "which one?" when ambiguous
+GROUNDING_CONFIG = "configs/I7.yaml"   # text prompts: asks "which one?" when ambiguous (I2c);
+                                       # plural prompts ("the pigs") remove all of them (I7)
 CLICK_CONFIG = "configs/I8.yaml"       # clicks select the whole object, not a part
 EXAMPLES_DIR = Path("showcase")  # pre-rendered before/after videos (git-ignored), shown instantly in the demo
 
@@ -130,7 +131,10 @@ def run_removal(name: str | None, text: str, click: list[int] | None, method: st
             msg = (f"**{len(res['choices'])} things match '{text}'.** Click the one to remove "
                    "on the image at the left, then press **Remove it** again.")
             return None, None, None, msg, draw_choices(name, res["choices"]), res["choices"], None
-        note = f"Found the {grounding.clean_prompt(text).rstrip('.')} (confidence {res['score']:.2f}). "
+        if res.get("multi"):
+            note = f"Found {len(res['boxes'])} × {grounding.clean_prompt(text).rstrip('.')}; removing all of them. "
+        else:
+            note = f"Found the {grounding.clean_prompt(text).rstrip('.')} (confidence {res['score']:.2f}). "
     else:
         shutil.rmtree(paths["run"], ignore_errors=True)
     segment.run(cfg, name, click=None if text else click, overwrite=True)

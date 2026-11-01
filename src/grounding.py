@@ -2,8 +2,9 @@
 
 Grounding DINO (Liu et al., 2023) is an open-vocabulary detector: given an image and
 free text ("dog", "black swan"), it returns boxes for things matching the text, with a
-confidence score. We keep the single highest-scoring box (one object, see I7) and pass
-it to SAM 2 as a box prompt instead of a click.
+confidence score. We keep the single highest-scoring box and pass it to SAM 2 as a box
+prompt instead of a click. I7: a plural prompt ("remove the pigs") keeps every box above
+grounding.multi.min_score instead, written as "boxes" in boxes.json.
 
 Text sources, in order of priority:
   1. --text on the command line ("remove the dog" works; "remove" is stripped)
@@ -47,7 +48,9 @@ def read_prompts_file(path: str | Path) -> dict[str, str]:
         if line and not line.startswith("#"):
             parts = line.split()
             # "name prompt words" (eval_prompts.txt) or "name davis_clip object_id prompt words" (real_clips.txt)
-            prompts[parts[0]] = " ".join(parts[3:] if len(parts) >= 4 and parts[2].isdigit() else parts[1:])
+            # (object_id may be a list like "1,2,3" in the multi-object sets, I7)
+            has_ids = len(parts) >= 4 and re.fullmatch(r"\d+(,\d+)*", parts[2])
+            prompts[parts[0]] = " ".join(parts[3:] if has_ids else parts[1:])
     return prompts
 
 
@@ -141,6 +144,47 @@ def simulated_choice(dets: list[dict], gt_mask: np.ndarray) -> int:
     return int(np.argmax([box_iou(d["box"], gt) for d in dets]))
 
 
+IRREGULAR_PLURALS = {"people", "men", "women", "children", "kids", "geese", "mice", "feet", "teeth"}
+PREPOSITIONS = {"in", "on", "with", "at", "near", "by", "of", "from", "wearing", "holding", "behind"}
+
+
+def is_plural(text: str) -> bool:
+    """I7: does the prompt ask for several objects? 'remove all the dogs', 'pigs',
+    'people in white' -> True; 'man with sunglasses', 'dress', 'goldfish' -> False.
+
+    Rule (kept simple on purpose): 'all', 'both' or 'every' anywhere, or the head noun,
+    i.e. the last word before the first preposition, is plural. Plural = an irregular
+    plural from the list, or ends in 's' but not 'ss'/'us'/'is'. Words like 'sheep' or
+    'fish' are the same in both forms; the user can say 'all the fish'.
+    """
+    words = re.findall(r"[a-z]+", text.lower())
+    if {"all", "both", "every"} & set(words):
+        return True
+    words = [w for w in words if w not in {"remove", "erase", "delete", "please", "the", "a", "an"}]
+    head = []
+    for w in words:
+        if w in PREPOSITIONS:
+            break
+        head.append(w)
+    if not head:
+        return False
+    noun = head[-1]
+    return noun in IRREGULAR_PLURALS or (noun.endswith("s") and not noun.endswith(("ss", "us", "is")))
+
+
+def select_all(dets: list[dict], m_cfg: dict) -> list[dict]:
+    """I7: every detection above min_score, minus duplicates (a box overlapping an already
+    kept, higher-scoring box by IoU > nms_iou is the same object found twice)."""
+    from src.evaluate import box_iou
+    kept = []
+    for d in dets:  # best first
+        if d["score"] < m_cfg.get("min_score", 0.3) or len(kept) >= m_cfg.get("max_objects", 10):
+            continue
+        if all(box_iou(d["box"], k["box"]) <= m_cfg.get("nms_iou", 0.5) for k in kept):
+            kept.append(d)
+    return kept
+
+
 def unload_model() -> None:
     """Free Grounding DINO (and CLIP) before SAM 2 runs (together they swap on a 16 GB Mac)."""
     import gc
@@ -198,8 +242,12 @@ def run(cfg: dict, clip: str, text: str | None = None, overwrite: bool = False) 
     best = dets[0] if dets else None
     result = {"text": text, "box": best["box"] if best else None,
               "score": best["score"] if best else None, "candidates": dets[:10]}
+    multi = cfg["grounding"].get("multi")  # I7: a plural prompt keeps every matching object
+    if multi and dets and is_plural(text):
+        objects = select_all(dets, multi)
+        result.update(multi=True, boxes=[d["box"] for d in objects], scores=[d["score"] for d in objects])
     dis = cfg["grounding"].get("disambiguate")  # I2c: ask the user when the prompt is ambiguous
-    if dis and dets:
+    if dis and dets and not result.get("multi"):
         choices = dets[: dis.get("max_choices", 3)]
         result["ambiguous"] = is_ambiguous(choices, dis.get("ratio", 0.7))
         result["choices"] = choices
@@ -209,7 +257,10 @@ def run(cfg: dict, clip: str, text: str | None = None, overwrite: bool = False) 
     if keyframes is not None:
         result["keyframes"] = keyframes
     paths["boxes"].write_text(json.dumps(result, indent=2))
-    if result.get("ambiguous"):
+    if result.get("multi"):
+        print(f"  [ground]  {clip}: '{text}' (plural) -> {len(result['boxes'])} objects, "
+              f"scores {result['scores']}")
+    elif result.get("ambiguous"):
         print(f"  [ground]  {clip}: '{text}' AMBIGUOUS ({len(result['choices'])} close candidates)"
               + (f" -> simulated user picks #{result['user_choice'] + 1}" if "user_choice" in result else ""))
     elif best:

@@ -1,0 +1,11 @@
+# MULTI-OBJECT test set (I7): unedited DAVIS 2017 val videos where several objects share
+# a name. The ground truth is the union of the listed DAVIS objects; the prompt is plural.
+# Chosen from the first-frame annotations before any I7 result. "goldfish" reads as
+# singular (see grounding.is_plural), so its prompt says "all the". The crowd of
+# unlabelled people in india is kept on purpose: a hard case, not an error.
+# name           davis_clip  object_ids  prompt
+multi_pigs       pigs        1,2,3       pigs
+multi_gold-fish  gold-fish   1,2,3,4,5   all the goldfish
+multi_india      india       1,2,3       women
+multi_judo       judo        1,2         judo fighters
+multi_loading    loading     1,3         men

@@ -331,3 +331,34 @@ Template:
 - Broke: shooting 0.89 → 0.39 (test) and bmx-bumps 0.53 → 0.45 (dev). In both, DAVIS's object 1 is *less* than the whole thing: on shooting it covers only part of the man, on bmx-bumps the rider without the bike. I8 selects the whole man / rider + bike. For removal that is arguably what a user wants, but the metric counts it as wrong. Click ambiguity cannot be fully solved by a fixed rule; the demo could show the three masks and let the user pick (as I2c does for boxes).
 - Synthetic test unchanged (pasted objects are whole by construction). Fill metrics within noise (PSNR mask 16.39 → 16.34).
 - Decision: **kept** for click prompts; the demo now uses it.
+
+## 2026-11-01: I7, plural prompts remove every matching object
+
+- Problem: "remove the pigs" removed one pig. Grounding kept only the top box (I2–I2c).
+- New sets, chosen from DAVIS first-frame annotations before any I7 result: `configs/multi_dev_clips.txt` (7 DAVIS train videos, 23 objects) and `configs/multi_clips.txt` (5 DAVIS val videos, 15 objects). Ground truth = union of the named objects; prompts are plural ("pigs", "people"). "goldfish" reads as singular under our rule, so that prompt is "all the goldfish" (written before running). Built with `src/make_real.py`, which now takes id lists and writes per-object frame-0 boxes (`gt_boxes.json`).
+- New evaluation columns (`src/evaluate.py`): **objects found** (named objects with a box, IoU > 0.5) and **extra removed** (boxes matching no named object).
+- Change (I7, one change vs I2c): if the prompt is plural (`grounding.is_plural`: "all/both/every", or the head noun before the first preposition is plural), keep every box with score ≥ `min_score`, drop duplicates (IoU > 0.5 with a better box), and give each box its own SAM 2 object id; the masks are merged. Singular prompts are untouched (checked: no prompt in the pasted, real or real dev lists reads as plural, so those results are I2c's).
+- Choosing `min_score` on dev, frame 0 only (`python -m src.eval_grounding --configs configs/I7.yaml --clips-file configs/multi_dev_clips.txt --multi-min-scores 0.2 ... 0.7 --out results/multi_grounding_dev.csv`):
+
+| min_score | 0.20 | 0.30 | 0.40 | **0.45** | 0.50 | 0.55 | 0.60 |
+|---|---|---|---|---|---|---|---|
+| objects found /23 | 23 | 23 | 23 | **23** | 22 | 19 | 13 |
+| extra boxes | 19 | 13 | 8 | **6** | 4 | 0 | 0 |
+
+  Rule: the strictest value that still finds every named object, because the user asked for all of them (a missed object is worse than an extra one). The 6 extra boxes at 0.45 are mostly real people DAVIS does not label (background pedestrians in walking, crowd in dancing); one is the dog in dog-gooses called a goose.
+- Commands: `python -m src.run_pipeline --config configs/<I2c|I7>.yaml --overlay configs/multi_dev_set.yaml`, then once with `--overlay configs/multi_set.yaml`.
+
+| | Dev: objects found | Dev: J&F | Test: objects found | Test: extra | Test: J&F | Test s/frame |
+|---|---|---|---|---|---|---|
+| I2c (one object) | 7/23 | 0.554 | 5/15 | 0 | 0.523 | 1.26 |
+| **I7** | **23/23** | **0.867** | **14/15** | 2 | **0.872** | 2.17 |
+
+- Per test clip (J&F I2c → I7): pigs 0.62 → 0.94, gold-fish 0.40 → 0.82 (4 of 5 fish; the 5th was detected but scored 0.43, just under 0.45), india 0.31 → 0.88, judo 0.58 → 0.73 (2 extra boxes that match neither fighter), loading 0.71 → 0.98. Better on all 5 test clips and all 7 dev clips.
+- Note on counting: in lindy-hop 7 boxes count as 8 found, because one box covers two dancers standing together (box IoU > 0.5 with both).
+- Cost: SAM 2 tracks each object separately, so time grows with the number of objects (test 1.26 → 2.17 s/frame; up to 4.3 s/frame for 7 people on dev).
+- Takeaway: **kept**. The detector already finds all instances; the single-box rule was throwing them away. Remaining errors are "extra" objects the prompt arguably includes (other people when asking for "people"). The demo's text mode now uses I7.
+
+## 2026-11-01: Charts of every metric
+
+- `python -m src.plot_metrics` writes `results/figures/{scorecard,masks,fill_end_to_end,fill_only,metric_check}.png` from the result CSVs (bar per version, panel per metric, direction "higher/lower is better" in each title, clean-video flicker as a dashed line). J, F and J&F are shown separately for every set.
+- `docs/slides/img/mask_examples.jpg`: true vs predicted masks on frame 30 for three failure types (part vs whole, one vs all, wrong object).

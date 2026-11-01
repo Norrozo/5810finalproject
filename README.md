@@ -122,6 +122,10 @@ python -m src.stage_report     # grounding / tracking / fill / end to end -> res
 
 **Real dev set.** `configs/real_dev_clips.txt`: 14 DAVIS *train* videos with look-alike objects and full masks (`--overlay configs/real_dev_set.yaml`). Grounding and tracking designs are checked here before the real test set.
 
+**Charts.** `python -m src.plot_metrics` draws every metric (J, F, J&F, PSNR, SSIM, LPIPS, flicker, the scorecard numbers) as bar charts in `results/figures/`.
+
+**Multi-object sets (I7).** `configs/multi_clips.txt` (5 DAVIS val videos) and `configs/multi_dev_clips.txt` (7 DAVIS train videos) name several objects of one kind with a plural prompt ("pigs", "people"); the ground truth is all of them together. Build with `python -m src.make_real --config configs/B0.yaml --davis-root DAVIS --clips-file configs/multi_clips.txt` (and the dev list), run with `--overlay configs/multi_set.yaml` or `configs/multi_dev_set.yaml`. Evaluation adds *objects found* (named objects that got a box) and *extra removed* (boxes on anything else). `grounding.multi.min_score` was chosen with `python -m src.eval_grounding --configs configs/I7.yaml --clips-file configs/multi_dev_clips.txt --multi-min-scores 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.7 --out results/multi_grounding_dev.csv`.
+
 **Tuning uses a separate dev set.** `configs/dev_clips.txt` holds 5 pairs built from DAVIS *train* videos (the test set uses only val videos). `python -m src.sweep` tries several values of one config key on the dev set, with ground-truth masks, and writes to `results/tuning.csv`. Values are picked there and then run once on the test set.
 
 Iterations that don't change segmentation set `segmentation.reuse_from: B0`, so every version is compared on the same SAM 2 masks.

@@ -1,7 +1,8 @@
 # Magic Eraser: what our metrics say about each iteration
 
 Group 35 (Daniel Zhang, William Huang). Every number below comes from a results file written
-by our scripts (`results/*.csv`, `results/stage_report.md`, `results/scorecard.md`); the
+by our scripts (`results/*.csv`, `results/stage_report.md`, `results/scorecard.md`; charts of
+every metric, J and F included, in `results/figures/*.png` from `python -m src.plot_metrics`); the
 full record with commands is `docs/experiment_log.md`. Nothing here is estimated by hand.
 
 ## 1. How we test: one stage at a time
@@ -24,7 +25,9 @@ Test sets (all chosen before results; settings are tuned only on separate dev se
   background is known and the fill can be scored. Weakness: pasted objects have hard edges and
   are usually the only one of their kind, so it is easy for finding and tracking.
 - **Real videos** (10 DAVIS val clips): unedited footage with look-alikes and crowds; masks only.
-- **Dev sets** for choosing settings: 5 pasted clips, 14 real clips (DAVIS train, look-alikes).
+- **Multi-object videos** (5 DAVIS val clips, 15 objects): plural prompts ("pigs"); the truth is all of them.
+- **Dev sets** for choosing settings: 5 pasted clips, 14 real clips (DAVIS train, look-alikes),
+  7 multi-object clips.
 
 ### The fill score and steadiness, explained
 
@@ -70,7 +73,8 @@ One change per iteration. "Pasted" = pasted benchmark, "real" = real videos.
 | **I5** | re-detect every 10 frames, re-seed lost tracks | real mask | real 67% → **60%** | **rejected**: moved a correct track onto another man (loading 99% → 24%) |
 | **I5b** | I5 with a fixed confirm check | real dev mask | real dev 91% → 87% (I5: 80%) | **rejected**: 0 correct corrections in 24 real clips; SAM 2 never lost the object, the detector missed it |
 | **I6** | smaller SAM 2 models (speed) | speed at same mask | real dev 79% → 60–71%, at most 1.7× faster | **rejected**: speed gain too small for the accuracy lost |
-| **I8** | a click keeps SAM 2's *largest* mask (whole object, not a part) | real mask | real 80% → **86%**, real dev 79% → **90%** | **kept**: fixes "clicked the rider, got only the rider" (mbike-trick 24% → 92%) |
+| **I8** | a click keeps SAM 2's *largest* mask (whole object, not a part) | real mask | real 80% → **86%**, real dev 79% → **90%** | **kept**: fixes "clicked the rider, got only the helmet" (mbike-trick 24% → 92%) |
+| **I7** | plural prompt ("the pigs") keeps every box ≥ 0.45, tracks each | objects found | multi-object test: 5/15 → **14/15**, mask 52% → **87%**; 2 extra; 1.26 → 2.17 s/frame | **kept**: better on all 12 multi-object clips (dev + test) |
 
 On the questions in our task list:
 
@@ -100,7 +104,10 @@ On the questions in our task list:
    next step is letting the user pick among SAM 2's three masks.
 4. **Speed.** ProPainter makes the full pipeline 5.4 s/frame (a 60-frame clip ≈ 5.5 min on the
    M5). SAM 2 is 97% of the baseline's time and smaller models were not worth it (I6).
-5. **Tracking itself is not the problem.** From a correct start SAM 2 holds the object: 94%
+5. **Several objects cost time.** Plural prompts now work (I7: 14/15 objects found), but SAM 2
+   tracks each object separately, so 7 people take ~3× as long as one. "People" also catches
+   people the user may not have meant (2 extra on the test set).
+6. **Tracking itself is not the problem.** From a correct start SAM 2 holds the object: 94%
    pasted, 86–90% real, and in 24 real clips it never lost the object (I5/I5b).
 
 ## 4. In one paragraph
@@ -109,6 +116,7 @@ Scoring each stage separately shows that the system's quality is limited by **fi
 63/100, steadiness 1.1×, with ProPainter) and, for text prompts on real video, by **finding the
 right object** (7/10). Tracking is reliable once it starts on the right object. The iterations
 that helped attacked exactly those stages: ProPainter for the fill (+39 points), asking when
-unsure for finding (+2 clips), and whole-object clicks for masking (+6 points on real video).
+unsure for finding (+2 clips), whole-object clicks for masking (+6 points on real video), and
+plural prompts for several objects (objects found 5/15 → 14/15).
 The rejected ones (I1, I2b, I5, I5b, I6) are rejected because a measured number got worse, and
 each is logged with the reason.

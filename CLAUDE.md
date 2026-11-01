@@ -54,7 +54,7 @@ Each stage is a separate script that reads from disk and writes to disk. Do not 
 | I5 | Re-detection every N frames for objects that leave and re-enter |
 | I5b | I5 + confirm the track against all candidates, not only confident ones |
 | I6 | Speed: smaller SAM 2 model, lower resolution, chunking |
-| I7 | Multi-object prompts + failure-case study |
+| I7 | Multi-object prompts: a plural prompt keeps every box ≥ `grounding.multi.min_score`, one SAM 2 object each, masks merged |
 
 Rules:
 - One iteration changes **one thing**. If a task mixes several changes, point this out and suggest splitting it.
@@ -68,6 +68,7 @@ Rules:
 - J&F scores the raw SAM 2 masks (`masks/`), not `masks_refined/`.
 - Second test set: `configs/real_clips.txt` (unedited DAVIS val videos, tracking only). Run with `--overlay configs/real_set.yaml`; results go to `results/real_results.csv`. Report both sets; the pasted benchmark overstates tracking and grounding.
 - Real dev set: `configs/real_dev_clips.txt` (DAVIS train, look-alike objects, full masks). `--overlay configs/real_dev_set.yaml` → `results/real_dev_results.csv`. Check grounding/tracking designs here before the real test set.
+- Multi-object sets (I7): `configs/multi_clips.txt` / `multi_dev_clips.txt`, overlays `multi_set.yaml` / `multi_dev_set.yaml` → `results/multi_results.csv` / `multi_dev_results.csv`. Ground truth = union of the listed objects; `data/<clip>/gt_boxes.json` gives per-object boxes for *objects found*.
 - Stage isolation: `--overlay configs/fill_only.yaml` runs a fill method on the true masks (`results/fill_results.csv`); `python -m src.stage_report` writes `results/stage_report.md` (grounding / tracking / fill / end to end, each scored separately). `python -m src.metric_check` scores fake outputs of known quality to validate the metrics.
 - `LPIPS mask` and `Flicker RAFT` (`src/metrics_deep.py`) are the primary perceptual/temporal metrics; PSNR mask and Farneback flicker are kept for continuity.
 - Metrics, all written to `results/results.csv` as one row per (version, clip) by `src/evaluate.py`:
@@ -102,6 +103,7 @@ src/
   metrics_deep.py   LPIPS, RAFT flicker
   stage_report.py   per-stage evaluation report
   scorecard.py      plain-language scorecard (results/scorecard.md)
+  plot_metrics.py   bar charts of every metric (results/figures/*.png)
   metric_check.py   metric sanity checks on known cases
   visualize.py      side-by-side videos and stills
   run_pipeline.py   runs all stages for one config

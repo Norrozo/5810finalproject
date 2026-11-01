@@ -1,0 +1,6 @@
+# Overlay: run any version on the MULTI-OBJECT test clips (I7). Ground truth = all named objects.
+#   python -m src.run_pipeline --config configs/I7.yaml --overlay configs/multi_set.yaml
+eval_clips: configs/multi_clips.txt
+results_csv: results/multi_results.csv
+grounding:
+  prompts_file: configs/multi_clips.txt

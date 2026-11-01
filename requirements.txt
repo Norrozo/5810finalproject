@@ -5,6 +5,7 @@ scikit-image
 pyyaml
 pillow
 tqdm
+matplotlib       # charts (src/plot_metrics.py)
 huggingface_hub
 
 # SAM 2 is installed separately (see README):
