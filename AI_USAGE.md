@@ -111,3 +111,12 @@ The course requires a summary of how we used generative AI tools and what, if an
     - What we changed ourselves: [none / describe]
 
 ---
+
+---
+
+## 2026-11-18: Midterm report draft
+
+- **Tool:** Claude Code (Anthropic), Opus 5.5
+- **What it did:** Drafted `docs/midterm/midterm_report.html` (rendered to `midterm_report.pdf` with headless Chrome) from `docs/experiment_log.md`, `docs/analysis.md`, `results/scorecard.md` and `results/stage_report.md`, in the proposal's layout.
+- **Copied directly:** the report text and layout. All numbers are copied from the results files above; none were estimated.
+- **Our review / changes:** _TO FILL IN by the team:_ emails, workstream owners, edits.
