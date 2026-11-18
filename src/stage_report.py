@@ -22,7 +22,7 @@ from pathlib import Path
 import pandas as pd
 
 TEXT_VERSIONS = ["I2", "I2b", "I2c", "I5", "I5b"]
-FILL_VERSIONS = ["B0", "I1", "I3", "I3b", "I4"]
+FILL_VERSIONS = ["B0", "I1", "I3", "I3b", "I3h", "I4"]
 FILL_COLS = {"psnr_mask": "PSNR mask ↑", "lpips_mask": "LPIPS mask ↓", "ssim": "SSIM ↑",
              "flicker_raft": "Flicker RAFT ↓", "flicker_raft_ref": "(clean video)", "spf_inpaint": "Fill s/frame ↓"}
 
@@ -108,7 +108,7 @@ def main(argv=None):
              table(mean_by_version(fill, FILL_VERSIONS, FILL_COLS), FILL_COLS) if len(fill) else "_Not run yet._",
              "## 4. End to end: what the user gets",
              "Full pipeline on the synthetic test set (`results/results.csv`): every stage's errors combined.",
-             table(mean_by_version(syn, ["B0", "I1", "I3", "I3b", "I4"] + TEXT_VERSIONS,
+             table(mean_by_version(syn, FILL_VERSIONS + TEXT_VERSIONS,
                                    {"JF": 0, **FILL_COLS, "spf_total": 0}),
                    {"JF": "J&F ↑", **{k: v for k, v in FILL_COLS.items() if k != "spf_inpaint"}, "spf_total": "Total s/frame ↓"})]
     if len(check):

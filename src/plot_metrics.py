@@ -28,7 +28,7 @@ import pandas as pd  # noqa: E402
 
 from src.scorecard import fill_score, read  # noqa: E402
 
-FILL_VERSIONS = ["B0", "I1", "I3", "I3b", "I4"]
+FILL_VERSIONS = ["B0", "I1", "I3", "I3b", "I3h", "I4"]
 MASK_VERSIONS = ["B0", "I8", "I2", "I2b", "I2c", "I5", "I5b", "I7"]
 FILL_METRICS = [("psnr", "PSNR (whole frame)", "higher"), ("psnr_mask", "PSNR mask", "higher"),
                 ("ssim", "SSIM", "higher"), ("lpips_mask", "LPIPS mask", "lower"),

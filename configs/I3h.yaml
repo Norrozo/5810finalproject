@@ -1,0 +1,32 @@
+# I3h (proposal name: I3b): B0 + homography alignment + temporal median fill (src/inpaint/homography.py).
+# Builds on B0 (not I1, whose dilation lowered every fill metric). One change vs B0: the fill method.
+version: I3h
+
+data_root: data
+runs_root: runs
+results_csv: results/results.csv
+eval_clips: configs/eval_clips.txt
+
+# Clip limits (keep small for Colab's free GPU)
+max_frames: 60
+max_height: 480
+
+segmentation:
+  method: sam2              # sam2 | oracle (oracle copies ground-truth masks; for debugging/ablations)
+  hf_model: facebook/sam2.1-hiera-large
+  offload_video_to_cpu: true
+  reuse_from: B0            # same SAM 2 settings as B0, so reuse its masks
+
+refine:
+  threshold: 127            # B0 only binarizes. No dilation or hole filling yet.
+
+inpaint:
+  method: homography        # align neighbors with ORB + RANSAC homographies, median of what they show
+  window: 20                # neighbors on each side; chosen on the dev set (src/sweep.py, results/tuning.csv)
+  min_inliers: 30           # skip neighbor pairs aligned by fewer RANSAC inliers
+  feature_dilate_px: 5      # keep ORB features this far from the object
+  radius: 5                 # Telea radius for pixels no neighbor showed
+
+evaluation:
+  boundary_tolerance: 0.008 # fraction of image diagonal, as in DAVIS
+  region_dilation: 5        # px added around the GT mask when scoring the filled region

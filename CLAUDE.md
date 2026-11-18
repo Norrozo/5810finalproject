@@ -49,6 +49,7 @@ Each stage is a separate script that reads from disk and writes to disk. Do not 
 | I2 | Text prompt via Grounding DINO |
 | I3 | Our own flow-guided inpainting (Farneback optical flow + temporal pixel propagation, `cv2.inpaint` fallback) |
 | I3b | I3 + hop cap (`max_hops: 5`, tuned on the dev set) |
+| I3h | Homography alignment (ORB + RANSAC) + temporal median fill (`src/inpaint/homography.py`, `window: 20` tuned on dev); the proposal calls it I3b |
 | I2b | I2 + candidate re-ranking (detector score × CLIP probability, wider candidate pool) |
 | I4 | ProPainter |
 | I5 | Re-detection every N frames for objects that leave and re-enter |
@@ -98,6 +99,7 @@ src/
   inpaint/
     opencv.py       B0 baseline
     flow_guided.py  our own method (I3)
+    homography.py   our align + median fill (I3h)
     propainter.py   wrapper around third_party/ProPainter (I4)
   evaluate.py       all metrics
   metrics_deep.py   LPIPS, RAFT flicker

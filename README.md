@@ -4,7 +4,7 @@ CIS 5810 Final Project, Fall 2026 · Option 1
 
 Point at an object in the first frame of a video, and the pipeline tracks it through every frame and fills in the background so it disappears.
 
-Status: **B0** (baseline), **I1** (mask refinement), **I2** (text prompts), **I3/I3b** (our flow-guided inpainting), **I4** (ProPainter), and the **demo** are done. See `docs/experiment_log.md` for every run.
+Status: **B0** (baseline), **I1** (mask refinement), **I2** (text prompts), **I3/I3b** (our flow-guided inpainting), **I3h** (our homography + temporal median fill), **I4** (ProPainter), and the **demo** are done. See `docs/experiment_log.md` for every run.
 
 | Version | Ground hit ↑ | J&F ↑ | PSNR ↑ | PSNR mask ↑ | SSIM ↑ | Flicker ↓ | s/frame ↓ |
 |---|---|---|---|---|---|---|---|

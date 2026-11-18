@@ -159,6 +159,15 @@ def main():
         assert float(rows["SMOKE_FLOW"]["psnr_mask"]) > float(rows["SMOKE"]["psnr_mask"]) + 3, \
             "flow-guided fill should clearly beat per-frame Telea on a panning clip"
 
+        # I3h homography + temporal median: a pure pan is exactly a homography, so it must beat Telea too.
+        cfg.update(version="SMOKE_HOMOG")
+        cfg["inpaint"] = {"method": "homography", "window": 5, "min_inliers": 10, "radius": 5}
+        cfg_path.write_text(yaml.safe_dump(cfg))
+        run_pipeline.main(["--config", str(cfg_path)])
+        rows = {r["version"]: r for r in csv.DictReader(open(tmp / "results.csv"))}
+        assert float(rows["SMOKE_HOMOG"]["psnr_mask"]) > float(rows["SMOKE"]["psnr_mask"]) + 3, \
+            "homography fill should clearly beat per-frame Telea on a panning clip"
+
         # Custom-video path: frame extraction
         vid = tmp / "v.mp4"
         wr = cv2.VideoWriter(str(vid), cv2.VideoWriter_fourcc(*"mp4v"), 10, (W * 4, H * 4))

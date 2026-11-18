@@ -24,7 +24,8 @@ from src.utils import clip_paths, list_frames, load_config, read_image, read_mas
 
 # Fill methods offered in the demo -> the config whose inpainting settings they use.
 METHODS = {
-    "Flow-guided, our method (fast)": "configs/I3b.yaml",
+    "Align frames + median, ours (fast)": "configs/I3h.yaml",
+    "Flow-guided, ours (fast)": "configs/I3b.yaml",
     "ProPainter (best, ~2 min)": "configs/I4.yaml",
     "OpenCV Telea (baseline)": "configs/B0.yaml",
 }

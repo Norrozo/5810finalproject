@@ -43,10 +43,10 @@
   <tr><td><b>Videos</b></td><td><a href="https://drive.google.com/drive/folders/17oNBUKSdmJQUoJfDs8toNFsOi6T5MVuX?usp=sharing">drive.google.com/drive/folders/17oNBUKSdmJQUoJfDs8toNFsOi6T5MVuX</a></td></tr>
 </table>
 
-<div class="summary"><b>Summary.</b> The user types what to remove (&ldquo;remove the dog&rdquo;, &ldquo;remove all the people&rdquo;) or clicks on it; the system finds the object, tracks it through the clip with SAM 2, and fills the background. Since the proposal we (1) built the evaluation it promised (LPIPS, RAFT flicker, real DAVIS clips scored on their own annotations) and extended it to score each stage on its own, with metrics checked against fake outputs of known quality; and (2) ran seven more iterations. Three were kept: <b>asking the user when the detector is unsure</b> (I2c: right object on real video 5/10 &rarr; 7/10), <b>whole-object clicks</b> (I7: real-video mask accuracy 80% &rarr; 86%), and <b>multi-object prompts</b> (I6: objects found 5/15 &rarr; 14/15). Four were rejected on the numbers: CLIP re-ranking (I2b), two versions of re-detection (I4, I4b) and smaller SAM 2 models (I5). The evaluation shows the remaining limits are the <b>fill</b> (best 63/100, ProPainter) and <b>confident wrong picks</b> from text; tracking from a correct start is reliable.</div>
+<div class="summary"><b>Summary.</b> The user types what to remove (&ldquo;remove the dog&rdquo;, &ldquo;remove all the people&rdquo;) or clicks on it; the system finds the object, tracks it through the clip with SAM 2, and fills the background. Since the proposal we (1) built the evaluation it promised (LPIPS, RAFT flicker, real DAVIS clips scored on their own annotations) and extended it to score each stage on its own, with metrics checked against fake outputs of known quality; and (2) ran eight more iterations. Four were kept: our second fill method, <b>frame alignment + temporal median</b> (I3b: fill score 26 &rarr; 37/100 vs. our flow fill, at 0.23 s/frame), <b>asking the user when the detector is unsure</b> (I2c: right object on real video 5/10 &rarr; 7/10), <b>whole-object clicks</b> (I7: real-video mask accuracy 80% &rarr; 86%), and <b>multi-object prompts</b> (I6: objects found 5/15 &rarr; 14/15). Four were rejected on the numbers: CLIP re-ranking (I2b), two versions of re-detection (I4, I4b) and smaller SAM 2 models (I5). The evaluation shows the remaining limits are the <b>fill</b> (best 63/100, ProPainter) and <b>confident wrong picks</b> from text; tracking from a correct start is reliable.</div>
 
 <h2>1. Goals and target audience</h2>
-<p><b>Audience:</b> casual creators cleaning up phone videos, and people protecting privacy by erasing bystanders before sharing, without frame-by-frame tools such as After Effects. <b>Goals:</b> (1) remove the named object(s) from a 5&ndash;10 s, 480p clip with no visible blur or flicker; (2) accept a text prompt, with a click as fallback; (3) measure every change against a fixed baseline, one change at a time; (4) a temporally consistent fill that copies real background wherever it was ever visible (our flow-guided method, I3a). New since the proposal: &ldquo;remove all the people&rdquo; removes <i>every</i> match, and the system asks the user to pick when two candidates look equally likely.</p>
+<p><b>Audience:</b> casual creators cleaning up phone videos, and people protecting privacy by erasing bystanders before sharing, without frame-by-frame tools such as After Effects. <b>Goals:</b> (1) remove the named object(s) from a 5&ndash;10 s, 480p clip with no visible blur or flicker; (2) accept a text prompt, with a click as fallback; (3) measure every change against a fixed baseline, one change at a time; (4) a temporally consistent fill that copies real background wherever it was ever visible (our own methods, I3a and I3b). New since the proposal: &ldquo;remove all the people&rdquo; removes <i>every</i> match, and the system asks the user to pick when two candidates look equally likely.</p>
 
 <h2>2. Project pipeline</h2>
 <div class="keep">
@@ -70,11 +70,12 @@
     <text x="381" y="43" text-anchor="middle" fill="#555">morphology</text>
     <text x="381" y="58" text-anchor="middle" fill="#555">specks, holes</text>
     <text x="381" y="73" text-anchor="middle" fill="#555">(dilation rejected, I1)</text>
-    <rect x="466" y="8" width="138" height="94" rx="6" fill="none" stroke="#555"/>
+    <rect x="466" y="8" width="138" height="94" rx="6" fill="#eef3fb" stroke="#1f5fbf" stroke-width="1.4"/>
     <text x="535" y="26" text-anchor="middle" font-weight="600">4. Inpaint</text>
     <text x="535" y="43" text-anchor="middle" fill="#555">Telea (B0)</text>
-    <text x="535" y="58" text-anchor="middle" fill="#555">ours: flow-guided (I3a)</text>
-    <text x="535" y="73" text-anchor="middle" fill="#555">ProPainter (I3d, best)</text>
+    <text x="535" y="58" text-anchor="middle" fill="#555">ours: flow (I3a), align +</text>
+    <text x="535" y="73" text-anchor="middle" fill="#555">median (I3b)</text>
+    <text x="535" y="88" text-anchor="middle" fill="#555">ProPainter (I3d, best)</text>
     <rect x="620" y="8" width="136" height="94" rx="6" fill="#eef3fb" stroke="#1f5fbf" stroke-width="1.4"/>
     <text x="688" y="26" text-anchor="middle" font-weight="600">5. Evaluate</text>
     <text x="688" y="43" text-anchor="middle" fill="#555">each stage separately</text>
@@ -90,7 +91,7 @@
   <text x="380" y="138" text-anchor="middle" font-size="10" fill="#555">swapped while the others stay fixed. Blue = changed since the proposal. A Gradio demo (text or click mode) calls the same stages.</text>
 </svg>
 </div>
-<p>All models are pretrained and used at inference only; our work is the pipeline, the rules that turn model outputs into decisions (when to ask, which mask to keep, how many objects to keep), our own flow-guided fill, and the evaluation. Settings (hop cap 5, ask ratio 0.7, multi-object threshold 0.45, SAM 2 size) were each chosen on a dev set and then run once on the test set.</p>
+<p>All models are pretrained and used at inference only; our work is the pipeline, the rules that turn model outputs into decisions (when to ask, which mask to keep, how many objects to keep), our own flow-guided fill, and the evaluation. Settings (hop cap 5, alignment window 20, ask ratio 0.7, multi-object threshold 0.45, SAM 2 size) were each chosen on a dev set and then run once on the test set.</p>
 
 <h2>3. How we evaluate</h2>
 <p><b>One stage at a time.</b> If only the final video is scored, a wrong box makes every number bad and we cannot tell which stage to fix. So each stage is scored with the stages before it replaced by the correct answer:</p>
@@ -105,17 +106,18 @@
 <p><b>Checking the metrics.</b> We scored fake outputs whose quality we know (<code>src/metric_check.py</code>). PSNR prefers a blurred background (20.5 dB) to a sharp one shifted by 4 px (17.7 dB), which looks better to a person; LPIPS ranks them correctly (0.305 vs 0.087). A flat gray box is almost as steady as the real video (flicker 9.7 vs 7.3), so flicker alone rewards wrong fills. A per-frame brightness flicker scores near-perfect on PSNR, SSIM and LPIPS and is caught only by the flicker metric. So <b>LPIPS replaces PSNR mask as our main fill metric, always read together with flicker</b> (now computed with RAFT, so it does not share a flow estimator with our method). For readability we also report a <b>fill score</b> = 100 &times; (1 &minus; LPIPS of our fill / LPIPS of leaving the object in) and <b>steadiness</b> = our flicker / the real video's flicker (1.0&times; = as steady as real footage).</p>
 
 <h2>4. Baseline results (B0)</h2>
-<p><b>B0</b> = a click on frame 0 (placed automatically at the deepest point of the true mask) &rarr; SAM 2 (<code>sam2.1-hiera-large</code>) &rarr; per-frame OpenCV inpainting (Telea, radius 5). On the pasted set B0 tracks well (J&amp;F 0.943) but <b>fills with a visible smear</b>: fill score 24/100, steadiness 2.8&times;, because Telea spreads border colors inward and each frame is filled independently. On real video the same click gives J&amp;F <b>0.798</b>: the drop is mostly clicks that SAM 2 reads as a <i>part</i> of the object (the helmet instead of the rider, Figure 2). Runtime is 1.38 s/frame on an Apple M5 laptop, 97% of it SAM 2.</p>
+<p><b>B0</b> = a click on frame 0 (placed automatically at the deepest point of the true mask) &rarr; SAM 2 (<code>sam2.1-hiera-large</code>) &rarr; per-frame OpenCV inpainting (Telea, radius 5). On the pasted set B0 tracks well (J&amp;F 0.943) but <b>fills with a visible smear</b>: fill score 24/100, steadiness 2.8&times;, because Telea spreads border colors inward and each frame is filled independently. On real video the same click gives J&amp;F <b>0.798</b>: the drop is mostly clicks that SAM 2 reads as a <i>part</i> of the object (the helmet instead of the rider, Figure 3). Runtime is 1.38 s/frame on an Apple M5 laptop, 97% of it SAM 2.</p>
 
 <h2>5. Development iterations</h2>
-<p>One change per iteration; names follow our proposal. B0, I1, I2, I3a and I3d were in the proposal (I2, I3a, I3d in preliminary form, now run on every new set). I2b, I2c, I4, I4b, I5, I6 and I7 are new: I4 (re-detection), I5 (speed) and I6 (multiple objects) were proposed; I2b/I2c address the grounding misses the real set exposed; I7 came from a side finding of I5.</p>
+<p>One change per iteration; names follow our proposal. B0, I1, I2, I3a and I3d were in the proposal (I2, I3a, I3d in preliminary form, now run on every new set). I3b, I2b, I2c, I4, I4b, I5, I6 and I7 are new: I3b (alignment + median fill), I4 (re-detection), I5 (speed) and I6 (multiple objects) were proposed; I2b/I2c address the grounding misses the real set exposed; I7 came from a side finding of I5.</p>
 <div class="keep">
 <table>
   <tr><th>Tag</th><th>Change (vs. its parent)</th><th>Number it targets</th><th class="n">Before &rarr; after</th><th>Decision</th></tr>
   <tr><td>B0</td><td>click &rarr; SAM 2 &rarr; Telea</td><td>&ndash;</td><td class="n">fill 24/100, 2.8&times;; real mask 80%</td><td>baseline</td></tr>
   <tr class="rej"><td>I1</td><td>grow mask 5 px, fill holes</td><td>fill score</td><td class="n">24 &rarr; 21</td><td>rejected</td></tr>
   <tr><td>I2</td><td>text prompt via Grounding DINO</td><td>right object</td><td class="n">pasted 9/10; real 5/10</td><td>kept (text mode)</td></tr>
-  <tr><td>I3a</td><td>our flow-guided fill, 5-hop cap (dev)</td><td>fill score</td><td class="n">24 &rarr; 26; 2.8&times; &rarr; 2.5&times;</td><td>kept (fast fill)</td></tr>
+  <tr><td>I3a</td><td>our flow-guided fill, 5-hop cap (dev)</td><td>fill score</td><td class="n">24 &rarr; 26; 2.8&times; &rarr; 2.5&times;</td><td>&rarr; I3b</td></tr>
+  <tr class="best"><td>I3b</td><td>ours: align frames (homography) + temporal median</td><td>fill score</td><td class="n">26 &rarr; <b>37</b>; 2.5&times; &rarr; 2.4&times;</td><td>kept (fast fill)</td></tr>
   <tr class="best"><td>I3d</td><td>ProPainter fill</td><td>fill score</td><td class="n">24 &rarr; <b>63</b>; 2.8&times; &rarr; <b>1.1&times;</b></td><td>kept (best fill)</td></tr>
   <tr class="rej"><td>I2b</td><td>re-rank text candidates with CLIP</td><td>right object</td><td class="n">real dev 11 &rarr; 6 /14</td><td>rejected</td></tr>
   <tr class="best"><td>I2c</td><td>ask the user if runner-up &ge; 0.7 &times; best score</td><td>right object</td><td class="n">real 5 &rarr; <b>7</b>/10; mask 48% &rarr; <b>67%</b></td><td>kept</td></tr>
@@ -125,12 +127,20 @@
   <tr class="best"><td>I6</td><td>multi-object prompt keeps every box &ge; 0.45, tracks each</td><td>objects found</td><td class="n">5 &rarr; <b>14</b>/15; mask 52% &rarr; <b>87%</b></td><td>kept (text mode)</td></tr>
   <tr class="best"><td>I7</td><td>click keeps SAM 2's largest of 3 masks</td><td>real mask</td><td class="n">80% &rarr; <b>86%</b></td><td>kept (click mode)</td></tr>
 </table>
-<p class="small">Mask = J&amp;F &times; 100. Fill and steadiness on the pasted set (full pipeline); &ldquo;real&rdquo; = real test set. Shaded = kept and improved the target number; gray = rejected. Full per-clip numbers and commands: <code>docs/experiment_log.md</code>, where config names differ (I3a = <code>I3b</code>, I3d = <code>I4</code>, I4/I4b = <code>I5</code>/<code>I5b</code>, I5 = <code>I6</code>, I6 = <code>I7</code>, I7 = <code>I8</code>).</p>
+<p class="small">Mask = J&amp;F &times; 100. Fill and steadiness on the pasted set (full pipeline); &ldquo;real&rdquo; = real test set. Shaded = kept and improved the target number; gray = rejected. Full per-clip numbers and commands: <code>docs/experiment_log.md</code>, where config names differ (I3a = <code>I3b</code>, I3b = <code>I3h</code>, I3d = <code>I4</code>, I4/I4b = <code>I5</code>/<code>I5b</code>, I5 = <code>I6</code>, I6 = <code>I7</code>, I7 = <code>I8</code>).</p>
 </div>
 
 <figure>
   <img src="../../results/figures/scorecard.png" alt="Scorecard charts">
-  <figcaption>Figure 1. Fill score, steadiness and speed on the pasted set (full pipeline), and real-video mask accuracy (blue = click, orange = text). Charts use the repository's config names: I3b = I3a, I4 = I3d, I8 = I7, I5 = I4. ProPainter is the only fill near real-video steadiness; it is 4&times; slower.</figcaption>
+  <figcaption>Figure 1. Fill score, steadiness and speed on the pasted set (full pipeline), and real-video mask accuracy (blue = click, orange = text). Charts use the repository's config names: I3b = I3a, I3h = I3b, I4 = I3d, I8 = I7, I5 = I4. ProPainter is the only fill near real-video steadiness; it is 4&times; slower.</figcaption>
+</figure>
+
+<h3>Inpainting: I3b, alignment + temporal median (kept)</h3>
+<p>Our flow fill (I3a) copies a pixel one frame at a time, so its error grows with every hop, and it was barely better than Telea (26 vs 24/100). As proposed, <b>I3b</b> aligns each neighbor frame to the current one <i>directly</i>: ORB features on the background only (the object is masked out so its motion never votes), a homography fitted with RANSAC (pairs with &lt; 30 inliers are skipped), then each hole pixel takes the <b>median</b> of the aligned neighbors where that spot was background; Telea fills what no neighbor saw. The window (neighbors on each side) was chosen on the dev set with true masks: LPIPS 0.222 / 0.207 / 0.192 / <b>0.177</b> / 0.177 for 3 / 5 / 10 / <b>20</b> / all frames, so 20 (as good as all frames, 1.7&times; faster). On the dev set our flow fill scored 0.249 and Telea 0.271. Test set, run once: fill score <b>26 &rarr; 37/100</b> end to end and 41 &rarr; 49 with true masks, better than I3a on 7/10 clips, at 0.23 s/frame for the fill (ProPainter: 4.1 s/frame, 63/100). With true masks it even beats ProPainter on one clip (cows). PSNR mask went <i>down</i> (16.5 &rarr; 16.0 dB) while LPIPS improved: the fill is sharp but slightly misaligned, exactly the case our metric check showed PSNR punishes. Figure 2 shows the limits: a median removes <i>anything</i> that moves, so the car driving through the background is half erased, and a moving crowd becomes a smear. It assumes a static background and a panning camera.</p>
+
+<figure>
+  <img src="../../results/figures/fill_comparison_i3h.jpg" alt="Fill comparison">
+  <figcaption>Figure 2. Frame 30 of three test clips, end to end (same SAM 2 masks for every method). I3b recovers the road (row 1) and the ramp (row 2) sharply where I3a tears, but erases the moving car and smears the moving crowd (row 3); ProPainter is best overall.</figcaption>
 </figure>
 
 <h3>Grounding: I2b (rejected), I2c (kept)</h3>
@@ -150,12 +160,12 @@
 
 <figure>
   <img src="../../docs/slides/img/mask_examples.jpg" alt="Mask examples">
-  <figcaption>Figure 2. Green = true mask, red = ours (labels use config names: I8 = I7, I7 = I6). Row 1: a B0 click selects only the helmet; I7 selects the rider. Row 2: &ldquo;people&rdquo; gives one person under I2c, all of them under I6. Row 3 (open problem): text confidently picks the wrong &ldquo;woman in white&rdquo;, so I2c does not ask; a click gets the right one.</figcaption>
+  <figcaption>Figure 3. Green = true mask, red = ours (labels use config names: I8 = I7, I7 = I6). Row 1: a B0 click selects only the helmet; I7 selects the rider. Row 2: &ldquo;people&rdquo; gives one person under I2c, all of them under I6. Row 3 (open problem): text confidently picks the wrong &ldquo;woman in white&rdquo;, so I2c does not ask; a click gets the right one.</figcaption>
 </figure>
 
 <h2>6. How the project evolved, and where it still struggles</h2>
 <ol>
-  <li><b>The fill is the biggest gap.</b> Even with perfect masks, Telea scores 38, our flow fill (I3a) 41 and ProPainter (I3d) 68 /100, so better masks cannot close it (ProPainter: 63 with our masks vs 68 with true masks). Hardest case: an object the camera follows, whose background is never visible in any frame.</li>
+  <li><b>The fill is the biggest gap.</b> Even with perfect masks, Telea scores 38, our fills 41 (I3a) and 49 (I3b), and ProPainter (I3d) 68 /100, so better masks cannot close it (ProPainter: 63 with our masks vs 68 with true masks). Hardest cases: an object the camera follows, whose background is never visible in any frame, and backgrounds that move themselves (traffic, crowds), which our median erases or smears.</li>
   <li><b>Grounding from text on real video.</b> 7/10 after I2c. The two remaining misses are <i>confident</i> wrong picks, so asking does not trigger. On clips where grounding is right, mask accuracy is 87&ndash;91%: nearly all of the text-prompt loss is grounding, not tracking.</li>
   <li><b>Part vs. whole.</b> I7 fixed most click failures, but a fixed rule cannot always match what the user means.</li>
   <li><b>Speed.</b> ProPainter makes the pipeline 5.4 s/frame (a 60-frame clip &asymp; 5.5 min); smaller SAM 2 models were not worth it (I5).</li>
@@ -170,8 +180,9 @@
   <tr><td>Oct 29</td><td>LPIPS + RAFT flicker; real-video test/dev sets; I2b, I2c</td><td>done</td></tr>
   <tr><td>Oct 30&ndash;31</td><td>Stage-by-stage evaluation, metric check; I4, I4b, I5, I7</td><td>done</td></tr>
   <tr><td>Nov 1</td><td>I6 multiple objects; metric charts; demo uses I2c, I6, I7</td><td>done</td></tr>
+  <tr><td>Nov 18</td><td>I3b alignment + temporal median fill</td><td>done</td></tr>
   <tr><td>Nov 20</td><td>Midterm report</td><td>this document</td></tr>
-  <tr><td>Nov 21&ndash;Dec 4</td><td>Planned: inpainting I3b (homography + temporal median), I3c (flow-initialized diffusion), I3e (DiffuEraser), compared on the fill-only benchmark; let the user pick among SAM 2's 3 click masks; failure study</td><td>planned</td></tr>
+  <tr><td>Nov 21&ndash;Dec 4</td><td>Planned: I3b median only where neighbors agree (keeps moving background objects); I3c (flow-initialized diffusion) and I3e (DiffuEraser) if they fit in our 16 GB laptop's memory, compared on the fill-only benchmark; let the user pick among SAM 2's 3 click masks; failure study</td><td>planned</td></tr>
   <tr><td>Dec 6</td><td>Demo Day: live Gradio demo (text and click), side-by-side videos</td><td>planned</td></tr>
   <tr><td>Dec 10</td><td>Final report, code, demo video, README</td><td>planned</td></tr>
 </table></div>

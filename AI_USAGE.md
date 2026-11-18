@@ -120,3 +120,12 @@ The course requires a summary of how we used generative AI tools and what, if an
 - **What it did:** Drafted `docs/midterm/midterm_report.html` (rendered to `midterm_report.pdf` with headless Chrome) from `docs/experiment_log.md`, `docs/analysis.md`, `results/scorecard.md` and `results/stage_report.md`, in the proposal's layout.
 - **Copied directly:** the report text and layout. All numbers are copied from the results files above; none were estimated.
 - **Our review / changes:** _TO FILL IN by the team:_ emails, workstream owners, edits.
+
+---
+
+## 2026-11-18: I3h (proposal I3b), homography + temporal median fill
+
+- **Tool:** Claude Code (Anthropic), Opus 5.5
+- **What it did:** Wrote `src/inpaint/homography.py` and `configs/I3h.yaml`, added the method to `src/inpaint/__init__.py`, the demo, the smoke test, the scorecard/charts/stage report lists; ran the dev sweep and the test runs; wrote the experiment-log entry, `results/figures/fill_comparison_i3h.jpg`, and the I3b section of the midterm report.
+- **Copied directly:** all of the above. Numbers come from running the scripts.
+- **Our review / changes:** _TO FILL IN by the team._

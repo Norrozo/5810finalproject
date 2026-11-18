@@ -362,3 +362,34 @@ Template:
 
 - `python -m src.plot_metrics` writes `results/figures/{scorecard,masks,fill_end_to_end,fill_only,metric_check}.png` from the result CSVs (bar per version, panel per metric, direction "higher/lower is better" in each title, clean-video flicker as a dashed line). J, F and J&F are shown separately for every set.
 - `docs/slides/img/mask_examples.jpg`: true vs predicted masks on frame 30 for three failure types (part vs whole, one vs all, wrong object).
+
+## 2026-11-18: I3h (proposal name I3b), homography alignment + temporal median fill
+
+- Problem: our flow fill (I3b) copies pixels one frame at a time, so error grows with every hop, and it is barely better than Telea (fill score 26 vs 24/100). The proposal planned a fill that aligns each neighbor frame to the current one directly.
+- Change (one change vs B0: the fill method; `src/inpaint/homography.py`, `configs/I3h.yaml`): ORB features on the background only (object mask dilated 5 px excluded); for each neighbor within `window` frames, ratio-test matches + RANSAC homography (skip pairs with < 30 inliers); warp the neighbor onto the current frame; each hole pixel = per-channel **median** of the neighbors where that spot was background; Telea for pixels no neighbor showed. ORB's corner threshold is 5 (default 20), because the smoke test's smooth texture had 0 corners at 20.
+- Smoke test extended: on the fake panning clip, PSNR mask 23.7 (Telea) → 36.2 (I3h) vs 30.7 (I3b).
+- Choosing `window` on the DEV set with true masks (`python -m src.sweep --config configs/I3h.yaml --key inpaint.window --values 3 5 10 20 none`), with Telea and I3b re-scored on the same clips with LPIPS (`python -m src.sweep --config configs/I3b.yaml --key inpaint.method --values opencv flow_guided`):
+
+| Dev, true masks | Telea | I3b flow | I3h w=3 | w=5 | w=10 | **w=20** | all frames |
+|---|---|---|---|---|---|---|---|
+| LPIPS mask ↓ | 0.271 | 0.249 | 0.222 | 0.207 | 0.192 | **0.177** | 0.177 |
+| PSNR mask ↑ | 20.13 | 20.65 | 20.98 | 21.51 | 21.93 | 22.31 | 22.79 |
+| Steadiness (RAFT) ↓ | 2.01× | 1.81× | 2.10× | 2.01× | 1.90× | 1.83× | 1.83× |
+| Fill s/frame | 0.04 | 0.18 | 0.07 | 0.11 | 0.16 | 0.27 | 0.46 |
+
+  LPIPS (main metric) and steadiness tie at 20 and all frames (0.177, 1.83×); 20 is 1.7× faster, so **window = 20**.
+- Test set, run once: `python -m src.run_pipeline --config configs/I3h.yaml --overlay configs/fill_only.yaml`, then `python -m src.run_pipeline --config configs/I3h.yaml` (B0's SAM 2 masks).
+
+| Test (10 clips) | B0 Telea | I3b flow | **I3h** | I4 ProPainter |
+|---|---|---|---|---|
+| End to end: fill score /100 | 24 | 26 | **37** | 63 |
+| End to end: LPIPS mask ↓ | 0.303 | 0.294 | **0.245** | 0.142 |
+| End to end: PSNR mask ↑ | 16.39 | 16.50 | 15.95 | 21.14 |
+| End to end: steadiness | 2.8× | 2.5× | 2.4× | 1.1× |
+| True masks: fill score /100 | 38 | 41 | **49** | 68 |
+| Fill step s/frame | 0.03 | 0.16 | 0.23 | 4.08 |
+
+- Per clip (end-to-end LPIPS, I3b → I3h): better on 7/10 (camel 0.396 → 0.238, cows 0.319 → 0.212, dog 0.290 → 0.198), worse on breakdance_on_india (0.314 → 0.320), horsejump-high_on_gold-fish (0.182 → 0.203), libby (≈ same). With true masks it even beats ProPainter on cows (0.173 vs 0.181).
+- What the stills show (`results/figures/fill_comparison_i3h.jpg`, frame 30): on camel the road is recovered sharply, but the red car driving through the background is half erased, because a median over 41 frames removes *anything* that moves, not only our object. On breakdance_on_india the background is a crowd that moves, so the median is a smear of people. The method assumes a static background seen from a panning camera.
+- PSNR mask goes *down* (16.50 → 15.95) while LPIPS improves: the median fill is sharp but slightly misaligned, the case `src/metric_check.py` showed PSNR punishes (shifted 4 px: 17.7 dB vs blurred 20.5 dB). We go by LPIPS, as decided on 2026-10-30.
+- Decision: **kept** as our fast fill (best non-learned fill: 37/100 at 0.23 s/frame, vs ProPainter's 63/100 at 4.1 s/frame, about 18× slower). The demo offers it. Next idea, not run: use the median only where the neighbors agree (low spread), else fall back to flow propagation, to keep moving background objects.

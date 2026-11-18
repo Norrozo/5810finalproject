@@ -25,6 +25,9 @@ def run(cfg: dict, clip: str, overwrite: bool = False) -> None:
         elif method == "flow_guided":
             from src.inpaint.flow_guided import inpaint_clip
             inpaint_clip(paths["frames"], paths["masks_refined"], out_dir, inpaint_cfg)
+        elif method == "homography":
+            from src.inpaint.homography import inpaint_clip
+            inpaint_clip(paths["frames"], paths["masks_refined"], out_dir, inpaint_cfg)
         elif method == "propainter":
             from src.inpaint.propainter import inpaint_clip
             inpaint_clip(paths["frames"], paths["masks_refined"], out_dir, inpaint_cfg)
